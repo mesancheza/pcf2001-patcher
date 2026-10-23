@@ -33,6 +33,7 @@ endif()
 add_subdirectory(src/installer)  # pcf2001-setup.exe: installs the game from the CD
 add_subdirectory(src/backend)    # dcogl.dll: the new graphics component, carried inside the patcher
 add_subdirectory(src/patcher)    # pcf2001-patch.exe: applies the fixes
+add_subdirectory(src/mods)       # pcf2001-mods.exe: installs optional mods on top of the fixes
 install(FILES README.md LEEME.md LICENSE DESTINATION .)
 
 # Development tools (not part of the shipped patch)

@@ -10,7 +10,7 @@ This document records the goals of the patch and every design decision, with the
 
 ## Non-goals
 
-- Changing gameplay, balance, the database, or the interface. Mods are out of scope.
+- Changing gameplay, balance, the database, or the interface in the patch. Mods that do are a separate, optional tool (D16).
 - Multiplayer (DirectPlay or TCP/IP). Nobody uses it today and it would need a separate effort.
 - Windows versions older than 10, or other operating systems.
 - Removing the CD check.
@@ -186,3 +186,22 @@ The CD's InstallShield 6 setup doesn't run on Windows 10/11 ([GAME-INTERNALS.md]
 | Make the CD's setup run (compatibility settings, a launcher that works around its errors) | It depends on InstallShield's 25-year-old engine registering itself in the system, and installs DirectX and Internet Explorer 5. Fragile, and it fails differently on different machines. |
 | Ship the installed game | It would distribute Dinamic's files (D3). |
 | Apply the RTPatch updates with our own code | RTPatch is a proprietary format. Running Dinamic's updaters also keeps their own checks. |
+
+### D16. Mods: a separate tool, each one optional
+
+Some players want the game to play differently, for example youth players from any country in *Jóvenes promesas*. That changes how the game plays, which the patch never does (goal 2), so mods are a separate program, `pcf2001-mods.exe` ([MODS.md](MODS.md)):
+
+- **The patch stays the original game, with its bugs fixed.** A player who never runs the mods tool gets exactly that.
+- **Each mod is installed and removed on its own.** The tool lists the mods with a check box each; nothing forces all or none.
+- **Mods go on top of the patch,** never on the v3.6 files: each one is a list of byte changes whose "before" bytes are those of the file as the patch leaves it. That keeps one set of offsets per mod, and lets mods use what the patch fixed.
+- **Any combination is checked against one hash.** The tool undoes the installed mods in memory and checks that the result is the file as this version of the patch leaves it, whatever mods were installed. Mods that change the same bytes can't be installed together.
+- **No backups of their own.** Removing a mod writes its "before" bytes back, after the same check, and the patch's backup of the v3.6 files stays the one copy of the originals.
+- **The patcher knows the mods too** (they share their code), so a modded `manager.exe` is still "patched": applying the patch again keeps the mods, and removing the patch restores the v3.6 files, mods included. Updating to a new version of the patch, whose files differ, needs the mods removed first with the old version's tool.
+
+**Alternatives considered:**
+
+| Alternative | Why not |
+|---|---|
+| Mods as options of the patcher | Every player would get a program that changes gameplay, and the patch's own checks would grow with every combination of options. |
+| Mods applied to the v3.6 files, independently of the patch | A mod's bytes could then be checked against two different files, and a mod couldn't rely on a fix. |
+| Changing the code in memory when the game starts, from `dcogl.dll` | The same reasons as for the fixes (D8): the files wouldn't show what's installed, and mods would depend on the new backend. |

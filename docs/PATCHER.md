@@ -81,7 +81,7 @@ In each fix, the first change jumps to new code in the padding between two funct
 
 ## Applying
 
-1. **Check the game:** `manager.exe`, `gfxwin.dll`, `dcd3d.dll`, `dcsfx.dll` and `DCSF.dll` must have the v3.6 SHA-256 values ([DESIGN.md D1](DESIGN.md#d1-target-dinamics-v36-only)), or `gfxwin.dll` and `manager.exe` the patched ones. The new component and its memory layer were made for exactly these files, so with any other version the patcher does nothing. It also refuses while the game is running.
+1. **Check the game:** `manager.exe`, `gfxwin.dll`, `dcd3d.dll`, `dcsfx.dll` and `DCSF.dll` must have the v3.6 SHA-256 values ([DESIGN.md D1](DESIGN.md#d1-target-dinamics-v36-only)), or `gfxwin.dll` and `manager.exe` the patched ones, with or without mods ([MODS.md](MODS.md#with-the-patcher)). The new component and its memory layer were made for exactly these files, so with any other version the patcher does nothing. It also refuses while the game is running.
 2. **Write `dcogl.dll`.**
 3. **Change `gfxwin.dll` and `manager.exe`,** each one that is still original: back it up to `pcf2001-patch\<file>.original`, check that every location holds the original bytes, change them, and check the result's SHA-256 before writing it.
 4. **Check the game again:** the state must now be "applied".
@@ -90,7 +90,7 @@ Every file is written next to its destination and then moved over it, so a failu
 
 ## Removing
 
-1. **Restore `gfxwin.dll` and `manager.exe`,** each one that was changed, from its backup, after checking that the backup has the v3.6 SHA-256. If a backup is missing or damaged, the patcher undoes the changes in place instead, after checking that every location holds the new bytes, and checks the result just the same.
+1. **Restore `gfxwin.dll` and `manager.exe`,** each one that was changed, from its backup, after checking that the backup has the v3.6 SHA-256. If a backup is missing or damaged, the patcher undoes the changes in place instead, mods first, after checking that every location holds the new bytes, and checks the result just the same.
 2. **Delete** `dcogl.dll`, `dcogl.ini` (if the player created one), the logs `dcogl.log` and `dcogl.old.log`, and the `pcf2001-patch` folder.
 3. **Check the game again:** the state must now be "unpatched".
 
@@ -104,6 +104,7 @@ If the game is uninstalled while patched, the installer's uninstaller removes th
 |---|---|
 | `main.cpp` | The window and the command line |
 | `patch.cpp` | Checking the game's state, applying and removing the patch |
+| `mods.cpp` | The mods and their code ([MODS.md](MODS.md)), so the patcher recognises them |
 | `patcher.rc` | The window's layout, version information, and `dcogl.dll` embedded as a resource (built from `src/backend`) |
 
-It reuses the installer's code for hashes, the log, and finding the game through the registry.
+`patch.cpp` and `mods.cpp` make the library `patch_core`, which the mods tool (`src/mods`) uses too. It reuses the installer's code for hashes, the log, and finding the game through the registry.

@@ -42,6 +42,8 @@ Then, two steps:
 1. **Install the game** with `pcf2001-setup.exe` ([docs/INSTALLER.md](docs/INSTALLER.md)). It installs from your CD and applies Dinamic's updates. It asks for administrator rights once.
 2. **Apply the patch** with `pcf2001-patch.exe` ([docs/PATCHER.md](docs/PATCHER.md)). It can be removed again the same way.
 
+Optionally, `pcf2001-mods.exe` installs mods on top of the patch, each one on its own: changes to how the game plays, such as youth players from any country in *Jóvenes promesas* ([docs/MODS.md](docs/MODS.md)). Without them, the game plays as the original.
+
 Playing needs no administrator rights, and nothing needs dgVoodoo, compatibility modes or any extra runtime.
 
 ## What the patch contains, and what it doesn't
@@ -79,6 +81,7 @@ Say what you were doing when it happened, and roughly at what time: each line of
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | The game's graphics plug-in interface, which the new graphics component implements |
 | [docs/INSTALLER.md](docs/INSTALLER.md) | The game installer: what it installs, and how |
 | [docs/PATCHER.md](docs/PATCHER.md) | The patcher: what it changes, and how it applies and removes it |
+| [docs/MODS.md](docs/MODS.md) | The optional mods, and the tool that installs them |
 | [docs/BUILDING.md](docs/BUILDING.md) | How to build everything from source |
 | [docs/RELEASING.md](docs/RELEASING.md) | How releases are built and published |
 | [docs/TOOLS.md](docs/TOOLS.md) | Development tools in this repository |
