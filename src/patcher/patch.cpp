@@ -56,8 +56,9 @@ const PatchedFile kPatchedFiles[] = {
      {{0xFE960, {0x01}, {0x03}}}},
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "a902b0d29855eb85ea56111fb2c2e2d731b5b8001020deb2162d50b5957c4dae",
-     L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, fixed",
+    {kGameFiles[0], "21feda12b24ac3f58eccf41df5e9da05d5af6f050c5d884e61196e996df8ef89",
+     L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
+     L"Rellena, fixed",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -98,7 +99,31 @@ const PatchedFile kPatchedFiles[] = {
        {0xFF, 0x74, 0x24, 0x04,           // push dword ptr [esp+4] (the offer)
         0xE8, 0xA0, 0xAA, 0x53, 0x00,     // call 0x9DA50A (operator delete)
         0x83, 0xC4, 0x04,                 // add esp,4
-        0xC2, 0x04, 0x00}}}},             // ret 4, as 0x4A0F10 does
+        0xC2, 0x04, 0x00}},               // ret 4, as 0x4A0F10 does
+      // Boards screen after Rellena (also run when Auto is switched on): the last board sold in the last section
+      // stays on screen as unsold. After the loop over the sections, show the current section again, as the loop
+      // does before each one. Three padding runs, linked by short jumps.
+      {0xE593B,
+       {0x3B, 0xC3, 0xC6, 0x44, 0x24, 0x68, 0x03},   // cmp eax,ebx; mov byte ptr [esp+68h],3
+       {0xE9, 0x81, 0x76, 0xFE, 0xFF, 0x90, 0x90}},  // jmp 0x4CCFC1; nop; nop
+      {0xCCFC1,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0xC6, 0x44, 0x24, 0x68, 0x03,     // mov byte ptr [esp+68h],3
+        0x6A, 0x00,                       // push 0 (from the top of the list)
+        0xFF, 0xB5, 0xDC, 0x21, 0x00, 0x00,  // push dword ptr [ebp+21DCh] (the current section)
+        0xEB, 0x31}},                     // jmp 0x4CD001
+      {0xCD001,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x8B, 0xCD,                       // mov ecx,ebp
+        0xE8, 0x08, 0x81, 0x01, 0x00,     // call 0x4E5110 (fill the section's list)
+        0x6A, 0x01,                       // push 1
+        0x8B, 0xCD,                       // mov ecx,ebp
+        0xEB, 0x33}},                     // jmp 0x4CD041
+      {0xCD041,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0xFF, 0x15, 0x60, 0xA0, 0xA6, 0x00,  // call dword ptr [0xA6A060] (redraw)
+        0x33, 0xC0,                       // xor eax,eax (always 0 here; sets ZF for the je that follows)
+        0xE9, 0xF4, 0x88, 0x01, 0x00}}}},  // jmp 0x4E5942
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

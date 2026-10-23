@@ -61,13 +61,17 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 | [Empty TV offers left out](GAME-INTERNALS.md#absurd-tv-offers) | `0x9CB6E` | `8B CE E8 9B 43 00 00` | `E8 AF 2E 00 00 90 90` |
 | | `0x9FA22` | `90` × 12 | `0B 51 08 8B CE 74 38 E9 E2 14 00 00` |
 | | `0x9FA61` | `90` × 15 | `FF 74 24 04 E8 A0 AA 53 00 83 C4 04 C2 04 00` |
+| [The last board sold by *Rellena* shows as unsold](GAME-INTERNALS.md#the-last-board-sold-by-rellena-shows-as-unsold) | `0xE593B` | `3B C3 C6 44 24 68 03` | `E9 81 76 FE FF 90 90` |
+| | `0xCCFC1` | `90` × 15 | `C6 44 24 68 03 6A 00 FF B5 DC 21 00 00 EB 31` |
+| | `0xCD001` | `90` × 13 | `8B CD E8 08 81 01 00 6A 01 8B CD EB 33` |
+| | `0xCD041` | `90` × 13 | `FF 15 60 A0 A6 00 33 C0 E9 F4 88 01 00` |
 
-In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `a902b0d29855eb85ea56111fb2c2e2d731b5b8001020deb2162d50b5957c4dae` |
+| SHA-256 after | `21feda12b24ac3f58eccf41df5e9da05d5af6f050c5d884e61196e996df8ef89` |
 
 ## Applying
 

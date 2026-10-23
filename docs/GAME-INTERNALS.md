@@ -175,6 +175,7 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 |---|---|
 | Crash with the advertising boards on Auto and no groundskeeper | Fixed by the patch. See below. |
 | Absurd TV offers in lower divisions | Fixed by the patch. See below. |
+| *Rellena* and *Auto* in *Vallas* seem to leave the last board unsold | Fixed by the patch. See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
@@ -235,6 +236,28 @@ The memory layer's diagnostic fill of new memory (`fill_new`) was once thought t
 **Fix:** the constructor sets the "all rights" amount to 0 for level 7 or higher, so lower-division offers never have one, as every correct offer already shows. The original instructions at VA `0x4928FD` have no room for it, so they jump to new code in the padding after the function that ends at VA `0x491F50` (VA `0x491F51`, 15 bytes of `nop` in v3.6), which repeats them, sets the amount, and jumps back. Offers already in a saved game keep their amounts.
 
 **Empty offers left out:** where the generation adds each new offer (VA `0x49CB6E`), it calls new code instead: if the offer has neither an "all rights" amount nor money per match, it's deleted instead of added. The check (12 bytes) and the delete (15 bytes) don't fit in one padding run, so they use two a short jump apart: VA `0x49FA22` and `0x49FA61`. Bytes for both changes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
+
+### The last board sold by *Rellena* shows as unsold
+
+**Symptom:** in *Finanzas → Estadio → Vallas*, *Rellena* (fill) and switching *Auto* on sell the advertising boards, but one section (the last one filled, *Oeste*, at the top of the drawing) shows one offer still on offer and its boards free. Clicking *Rellena* again then shows it sold.
+
+**What really happens:** the sale is made. Traced with the debugger on a *Rellena*: section 3 had room for 10 boards, an offer for 6 and one for 4 were sold, and the second one's "sold" byte (`+0x18`) was 1 in memory while the screen showed it unsold. Only the screen is wrong; the second click sells nothing, it just draws the section again.
+
+**The boards:** each offer of the team's board-offers object (the team state's `+0x6018`) has its section at `+0x0C` (0 to 3; 6, 10, 6 and 10 boards), its size in boards at `+0x10`, and whether it's sold at `+0x18`.
+
+| VA | What it does |
+|---|---|
+| `0x4C8290` | The n-th unsold offer of a section, counting from 1 |
+| `0x4C80C0` | Free boards in a section: its size minus the sizes of its sold offers (`0x4C7EE0`) |
+| `0x4C8590` | Marks an offer sold (1) or not (0) |
+| `0x4E56A0` | *Rellena*: for each section, collects its unsold offers, sorts them by value per board (the groundskeeper's quality picks the criterion, as in [Auto](#crash-with-the-advertising-boards-on-auto-and-no-groundskeeper)), and calls `0x4E5440` |
+| `0x4E5440` | Sells the offers that fit, in that order, highlighting each one in the on-screen list |
+| `0x4E59C0` | Switching *Auto* on: also runs *Rellena* |
+| `0x4E5BB0` | The section buttons (*Sur*, *Norte*, *Este*, *Oeste*): shows a section, with `0x4E5110` (fill the list) and a redraw |
+
+**Cause:** *Rellena* draws each section again before it looks for each offer to sell, and before it starts the next section, but never after a sale. So the last offer sold in a section shows up as sold only when the next section starts. For the last section there is no next one, and the screen keeps showing its last sale as unsold.
+
+**Fix:** after the loop over the sections, *Rellena* shows the current section again, as the loop does before each section: `0x4E5110(section, 0)` and the redraw. The new code (about 40 bytes) goes in three padding runs linked by short jumps, VA `0x4CCFC1`, `0x4CD001` and `0x4CD041`, from VA `0x4E593B`. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). The automatic sale when the days advance (`0x4ABA30`) doesn't draw anything, and the screen shows the right state when it's opened.
 
 ### Youth player offered a salary of 0
 

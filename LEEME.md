@@ -24,6 +24,7 @@ También arregla fallos que el juego ya tenía en 2001:
 |---|---|
 | Con las *Vallas* (en *Estadio*) en *Auto* y sin *Encargado del campo*, el juego se cuelga con *"La aplicación no puede continuar"* | Resuelto: las vallas se siguen vendiendo solas, como si las llevara el asistente, como hace el juego con los demás empleados que faltan |
 | En las divisiones más bajas, algunas ofertas de TV son absurdas, como 29.873.841 millones de pesetas "por todos los derechos" | Resuelto (en pruebas): las ofertas nuevas para esas divisiones ya no traen cantidad por todos los derechos, igual que las correctas, y las ofertas sin ningún dinero ya no aparecen. Las ofertas que ya estén en una partida guardada se quedan como están |
+| En *Estadio → Vallas*, *Rellena* y *Auto* parecen dejar sin vender la última valla de la última zona, hasta pulsar *Rellena* otra vez | Resuelto: la valla sí se vendía, pero la pantalla no se volvía a dibujar; ahora sí |
 
 Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) (en inglés).
 
