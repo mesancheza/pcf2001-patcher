@@ -54,11 +54,12 @@ const PatchedFile kPatchedFiles[] = {
     {kGameFiles[1], "bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5",
      L"default graphics backend changed to dcogl.dll",
      {{0xFE960, {0x01}, {0x03}}}},
-    // Advertising boards on Auto with no groundskeeper hired (docs/GAME-INTERNALS.md): where the daily processing
-    // reads the groundskeeper's quality through a null pointer, jump to new code in the padding after the function at
-    // 0x4AB5C0, which uses quality 0 when there's none, as the assistant handles the boards.
-    {kGameFiles[0], "750c45dae266abea0656cbf6f7f6b4a0f41f1e39c42d4caa6891c44b30e15551",
-     L"advertising boards on Auto without a groundskeeper fixed",
+    // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
+    // functions, and back.
+    {kGameFiles[0], "a902b0d29855eb85ea56111fb2c2e2d731b5b8001020deb2162d50b5957c4dae",
+     L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, fixed",
+     // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
+     // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
        {0x33, 0xC9, 0x8A, 0x48, 0x01, 0x89, 0x4C, 0x24, 0x20},   // xor ecx,ecx; mov cl,[eax+1]; mov [esp+20h],ecx
        {0xE9, 0xD0, 0xFB, 0xFF, 0xFF, 0x89, 0x44, 0x24, 0x20}},  // jmp 0x4AB661; mov [esp+20h],eax
@@ -67,7 +68,37 @@ const PatchedFile kPatchedFiles[] = {
        {0x85, 0xC0,                     // test eax,eax
         0x74, 0x04,                     // je 0x4AB669 (no groundskeeper: quality 0)
         0x0F, 0xB6, 0x40, 0x01,         // movzx eax,byte ptr [eax+1]
-        0xE9, 0x23, 0x04, 0x00, 0x00}}}},  // jmp 0x4ABA91
+        0xE9, 0x23, 0x04, 0x00, 0x00}},  // jmp 0x4ABA91
+      // Absurd TV offers in lower divisions: the TV offer constructor never sets the "all rights" amount for teams
+      // of level 7 or higher (the lowest divisions), and scales whatever the new memory held. Set it to 0 there, as
+      // the other offers show.
+      {0x928FD,
+       {0x89, 0x6E, 0x18, 0xC6, 0x46, 0x1C, 0x00},   // mov [esi+18h],ebp; mov byte ptr [esi+1Ch],0
+       {0xE9, 0x4F, 0xF6, 0xFF, 0xFF, 0x90, 0x90}},  // jmp 0x491F51; nop; nop
+      {0x91F51,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x89, 0x6E, 0x18,                 // mov [esi+18h],ebp
+        0xC6, 0x46, 0x1C, 0x00,           // mov byte ptr [esi+1Ch],0
+        0x89, 0x2E,                       // mov [esi],ebp (ebp is 0: no "all rights" amount)
+        0xE9, 0xA5, 0x09, 0x00, 0x00}},  // jmp 0x492904
+      // Empty TV offers: when a new offer has no money at all (no "all rights" amount, nothing per match), delete it
+      // instead of adding it to the team's offers (0x4A0F10). The check and the delete use two padding runs a short
+      // jump apart.
+      {0x9CB6E,
+       {0x8B, 0xCE, 0xE8, 0x9B, 0x43, 0x00, 0x00},   // mov ecx,esi; call 0x4A0F10
+       {0xE8, 0xAF, 0x2E, 0x00, 0x00, 0x90, 0x90}},  // call 0x49FA22; nop; nop
+      {0x9FA22,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x0B, 0x51, 0x08,                 // or edx,[ecx+8] (edx: the "all rights" amount; ecx: the offer)
+        0x8B, 0xCE,                       // mov ecx,esi
+        0x74, 0x38,                       // je 0x49FA61 (no money)
+        0xE9, 0xE2, 0x14, 0x00, 0x00}},   // jmp 0x4A0F10
+      {0x9FA61,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0xFF, 0x74, 0x24, 0x04,           // push dword ptr [esp+4] (the offer)
+        0xE8, 0xA0, 0xAA, 0x53, 0x00,     // call 0x9DA50A (operator delete)
+        0x83, 0xC4, 0x04,                 // add esp,4
+        0xC2, 0x04, 0x00}}}},             // ret 4, as 0x4A0F10 does
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

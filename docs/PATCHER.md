@@ -56,13 +56,18 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 |---|---|---|---|
 | [Crash with the advertising boards on Auto and no groundskeeper](GAME-INTERNALS.md#crash-with-the-advertising-boards-on-auto-and-no-groundskeeper) | `0xABA8C` | `33 C9 8A 48 01 89 4C 24 20` | `E9 D0 FB FF FF 89 44 24 20` |
 | | `0xAB661` | `90` × 13 | `85 C0 74 04 0F B6 40 01 E9 23 04 00 00` |
+| [Absurd TV offers in lower divisions](GAME-INTERNALS.md#absurd-tv-offers) | `0x928FD` | `89 6E 18 C6 46 1C 00` | `E9 4F F6 FF FF 90 90` |
+| | `0x91F51` | `90` × 14 | `89 6E 18 C6 46 1C 00 89 2E E9 A5 09 00 00` |
+| [Empty TV offers left out](GAME-INTERNALS.md#absurd-tv-offers) | `0x9CB6E` | `8B CE E8 9B 43 00 00` | `E8 AF 2E 00 00 90 90` |
+| | `0x9FA22` | `90` × 12 | `0B 51 08 8B CE 74 38 E9 E2 14 00 00` |
+| | `0x9FA61` | `90` × 15 | `FF 74 24 04 E8 A0 AA 53 00 83 C4 04 C2 04 00` |
 
-The first change jumps to the second, new code in the padding between two functions: quality 0 when there's no groundskeeper, his quality as before when there is one, and back.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `750c45dae266abea0656cbf6f7f6b4a0f41f1e39c42d4caa6891c44b30e15551` |
+| SHA-256 after | `a902b0d29855eb85ea56111fb2c2e2d731b5b8001020deb2162d50b5957c4dae` |
 
 ## Applying
 
