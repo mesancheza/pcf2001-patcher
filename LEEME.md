@@ -10,6 +10,7 @@ Parche no oficial y de código abierto para que **PC FÚTBOL 2001** (Dinamic Mul
 
 | Problema en Windows actual | Estado |
 |---|---|
+| El instalador del CD no funciona (*"Acceso denegado"* y otros errores), así que ni siquiera se puede instalar el juego | Sustituido por nuestro propio instalador, `pcf2001-setup.exe`, que además aplica las actualizaciones de Dinamic (en pruebas) |
 | El juego se detiene al arrancar con *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Resuelto con el componente gráfico nuevo (en pruebas) |
 | La pantalla completa cambia todo el escritorio a 800×600 | Resuelto (en pruebas): el juego se dibuja a su resolución y se escala a tu pantalla manteniendo la proporción |
 | En modo ventana, algunos elementos se dibujan en el sitio equivocado | Debería resolverlo el componente gráfico nuevo; aún sin probar |
@@ -21,11 +22,16 @@ Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/
 
 ## Qué vas a necesitar
 
-- **Tu propia copia de PC FÚTBOL 2001, con la actualización oficial de Dinamic a la versión 3.6** (`PCFPATCH3.6.EXE`). Cuando está instalada, el menú principal muestra "V3.6" en la esquina superior derecha. Solo se admite la 3.6; el motivo está en [docs/DESIGN.md](docs/DESIGN.md#d1-target-dinamics-v36-only).
-- **El CD del juego, o una imagen del CD montada como unidad.** El parche mantiene la comprobación del CD, y Windows 10/11 monta un archivo `.iso` con un doble clic.
+- **Tu propia copia de PC FÚTBOL 2001:** el CD del juego, o una imagen del CD. El juego mantiene su comprobación del CD, y Windows 10/11 monta un archivo `.iso` con un doble clic.
+- **Las actualizaciones oficiales de Dinamic:** la de la **versión 3.6** (`PCFPATCH3.6.EXE`) y las 12 de datos (`PCFACT01.exe` a `PCFACT12.exe`). Nuestro instalador las aplica todas; el motivo de admitir solo la 3.6 está en [docs/DESIGN.md](docs/DESIGN.md#d1-target-dinamics-v36-only).
 - **Windows 10 u 11.**
 
-El parche **no** necesita dgVoodoo, modos de compatibilidad, permisos de administrador ni ningún programa adicional.
+Después, dos pasos:
+
+1. **Instala el juego** con `pcf2001-setup.exe` ([docs/INSTALLER.md](docs/INSTALLER.md), en inglés). Lo instala desde tu CD y aplica las actualizaciones de Dinamic. Pide permisos de administrador una vez.
+2. **Aplica el parche** con `pcf2001-patch.exe` ([docs/PATCHER.md](docs/PATCHER.md), en inglés). Se puede quitar de la misma forma.
+
+Para jugar no hacen falta permisos de administrador, y nada necesita dgVoodoo, modos de compatibilidad ni ningún programa adicional.
 
 ## Qué incluye el parche y qué no
 
@@ -62,6 +68,8 @@ La documentación técnica está en inglés:
 | [docs/DESIGN.md](docs/DESIGN.md) | Objetivos, alcance y todas las decisiones de diseño con su justificación |
 | [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) | Lo que hemos aprendido de cómo funciona el juego y por qué falla en Windows actual |
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | La interfaz de módulos gráficos del juego, que implementa el componente gráfico nuevo |
+| [docs/INSTALLER.md](docs/INSTALLER.md) | El instalador del juego: qué instala y cómo |
+| [docs/PATCHER.md](docs/PATCHER.md) | El parcheador: qué cambia, y cómo lo aplica y lo quita |
 | [docs/BUILDING.md](docs/BUILDING.md) | Cómo compilar todo desde el código fuente |
 | [docs/RELEASING.md](docs/RELEASING.md) | Cómo se compilan y publican las versiones |
 | [docs/TOOLS.md](docs/TOOLS.md) | Herramientas de desarrollo del repositorio |

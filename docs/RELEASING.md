@@ -5,7 +5,7 @@ Releases are built by GitHub Actions ([`.github/workflows/release.yml`](../.gith
 ## How to make a release
 
 1. **Choose the version**, `<major>.<minor>.<patch>`, for example `0.1.0`.
-2. **Create the release branch** `release/<version>` from `main`, and push it:
+2. **Create the release branch** `release/<version>` (or `release/v<version>`) from `main`, and push it:
 
    ```
    git checkout main
@@ -26,7 +26,7 @@ Closing a pull request without merging it does nothing.
 
 | File | Contents |
 |---|---|
-| `pcf2001-patch-<version>-win32.zip` | The patch: everything `cmake --install` installs. Today that's `dcogl.dll` (the new graphics component), `README.md`, `LEEME.md` and `LICENSE`. When the patcher program exists, its install rule puts it here too. Development tools are never installed. |
+| `pcf2001-patch-<version>-win32.zip` | Everything `cmake --install` installs: `pcf2001-setup.exe` (the game installer), `pcf2001-patch.exe` (the patcher, with the new graphics component `dcogl.dll` inside), `README.md`, `LEEME.md` and `LICENSE`. Development tools are never installed. |
 | `pcf2001-patcher-<version>-source.zip`, `pcf2001-patcher-<version>-source.tar.gz` | The source code of the merged commit, in a folder named after the version. |
 | `SHA256SUMS.txt` | SHA-256 hashes of the files above, and of every file inside the patch `.zip`. |
 
@@ -38,6 +38,6 @@ From the name of the release branch. The workflow passes it to the build (`build
 
 ## Requirements
 
-- The release branch must be named exactly `release/<major>.<minor>.<patch>`; the workflow fails otherwise.
+- The release branch must be named exactly `release/<major>.<minor>.<patch>` or `release/v<major>.<minor>.<patch>`; the workflow fails otherwise.
 - Pull requests must come from branches of this repository. For pull requests from forks, GitHub gives the workflow read-only access, and it can't create the release.
 - The workflow file must be in the merged code, which it is for any release branch created from `main`.

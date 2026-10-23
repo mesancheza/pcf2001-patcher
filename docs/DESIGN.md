@@ -108,15 +108,19 @@ Bugs that only appear on modern Windows, such as the garbled names, get fixed wh
 
 ### D10. The patcher
 
-A single, small Windows program with a Spanish interface. Not built yet; planned behavior:
+`pcf2001-patch.exe` ([PATCHER.md](PATCHER.md)): a single, small Windows program with a Spanish interface, separate from the game installer (D15). The installer installs the game as Dinamic released it, the patcher fixes it.
 
-1. Ask for the game folder, or find it.
-2. Verify each file to modify against its known v3.6 hash (D1). Do nothing if any file doesn't match.
-3. Back up every file before modifying it.
-4. Apply the documented changes and add the new backend DLL.
-5. Offer to uninstall, restoring the backups exactly.
+1. It finds the game folder through the installer's registry value, or the player chooses it.
+2. It verifies the v3.6 files against their known hashes (D1), and does nothing if any doesn't match.
+3. It backs up every file before modifying it.
+4. It applies the documented changes and adds the new backend DLL, which it carries inside itself.
+5. It can remove the patch, restoring the backups exactly.
 
-It needs no administrator rights unless the game is installed in a protected folder such as `Program Files`.
+**One window, not a wizard:** the folder, the game's state, and *Aplicar* / *Quitar* buttons. There is little to decide.
+
+**The new backend becomes the default by changing one byte in `gfxwin.dll`,** its default backend index, so every way of starting the game uses it, including Dinamic's launcher with the CD check and the intro video. The alternative, shortcuts that start `manager.exe dcogl.dll`, would leave every other way of starting the game broken, and lose the intro.
+
+It needs no administrator rights: the installer makes the game folder writable for every user (D15).
 
 ### D11. No network, no telemetry
 
@@ -158,3 +162,23 @@ The new backend writes `dcogl.log` next to the game, and keeps the previous sess
 - **Small:** a few kilobytes per hour of play, capped at 4 MB per session.
 - **Private:** nothing that identifies the player. In particular no full paths, which usually contain the Windows user name. It is never sent anywhere automatically (D11).
 - **Diagnostic mode:** `diagnose=1` in the `[memory]` section of `dcogl.ini` also records which code freed each block the game keeps writing to. It's off by default because it costs memory and speed.
+
+### D15. Our own game installer
+
+The CD's InstallShield 6 setup doesn't run on Windows 10/11 ([GAME-INTERNALS.md](GAME-INTERNALS.md#the-cds-installer)), so players can't even install the game. The project includes its own installer, `pcf2001-setup.exe` ([INSTALLER.md](INSTALLER.md)):
+
+- **It reads the player's own CD** (or a mounted `.iso`, or a copy of the CD), unpacking InstallShield's archive with our own code, and checks every file against the MD5 the archive stores.
+- **It installs what Dinamic's *Typical* setup installed,** and creates the same registry value and Start menu shortcuts. It leaves out what doesn't belong on today's Windows: InstallShield's engine, old Microsoft runtime libraries for `System32`, and the DirectX and Internet Explorer 5 installers.
+- **It applies all of Dinamic's updates** (3.6 and data updates 1 to 12), which the player supplies, by running Dinamic's own updaters in order. All 13 are required, so every installation ends in the same, well-defined state that the patcher expects (D1).
+- **It only installs.** The fixes for modern Windows are the patcher's job (D10). The two programs stay separate so each can be checked on its own, and so the installer's result can be compared with a plain original installation.
+- **It asks for administrator rights once,** for the machine-wide registry value Dinamic's updaters read, and for shortcuts for all users. Playing never needs them (D4).
+- **Default folder `C:\Juegos\PC Futbol 2001`,** never *Program Files*: the game writes its settings and saved games into its own folder, which Windows doesn't allow there.
+- **The uninstaller always keeps saved games.**
+
+**Alternatives considered:**
+
+| Alternative | Why not |
+|---|---|
+| Make the CD's setup run (compatibility settings, a launcher that works around its errors) | It depends on InstallShield's 25-year-old engine registering itself in the system, and installs DirectX and Internet Explorer 5. Fragile, and it fails differently on different machines. |
+| Ship the installed game | It would distribute Dinamic's files (D3). |
+| Apply the RTPatch updates with our own code | RTPatch is a proprietary format. Running Dinamic's updaters also keeps their own checks. |

@@ -29,9 +29,12 @@ else()
     set(PATCH_VERSION_STRING "${PCF_PATCH_VERSION}")
 endif()
 
-# The patch. What gets installed (cmake --install) is exactly what a release ships to players.
-add_subdirectory(src/backend)
+# What players get. What gets installed (cmake --install) is exactly what a release ships to them.
+add_subdirectory(src/installer)  # pcf2001-setup.exe: installs the game from the CD
+add_subdirectory(src/backend)    # dcogl.dll: the new graphics component, carried inside the patcher
+add_subdirectory(src/patcher)    # pcf2001-patch.exe: applies the fixes
 install(FILES README.md LEEME.md LICENSE DESTINATION .)
 
 # Development tools (not part of the shipped patch)
 add_subdirectory(tools/backend-trace)
+add_subdirectory(tools/is6-cab)

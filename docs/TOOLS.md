@@ -29,6 +29,18 @@ A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show u
 | `exception: access violation at <module>+<offset>, reading address …` | A fault. The game may handle it and continue, or show *"La aplicación no puede continuar"*. |
 | `window was made topmost; making it a normal window again` | Expected once per session; see [GAME-INTERNALS.md](GAME-INTERNALS.md#full-screen-window-always-on-top). |
 
+## is6-cab
+
+`tools/is6-cab` builds `is6-cab.exe`, which reads InstallShield 6 archives like the game CD's `DATA1.HDR` with the same code as the installer ([INSTALLER.md](INSTALLER.md)):
+
+```
+is6-cab list <CD>\DATA1.HDR                 components, file groups, and every file with its size and flags
+is6-cab manifest <CD>\DATA1.HDR             every file with its MD5 and where it is: "archive", or its path on the CD
+is6-cab extract <CD>\DATA1.HDR <carpeta>    unpacks the files inside the archive, into one folder per file group
+```
+
+`manifest` checks the whole CD: it finds every file that isn't inside the archive and verifies its MD5, and exits with code 1 if any is missing or damaged. Useful to check a CD image before installing, or to compare installations.
+
 ## backend-trace
 
 `tools/backend-trace` builds `dcogl.dll`, a logging stand-in for the game's graphics backend. It does two jobs while the game runs normally:
