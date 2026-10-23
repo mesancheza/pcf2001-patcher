@@ -176,6 +176,7 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 | Crash with the advertising boards on Auto and no groundskeeper | Fixed by the patch. See below. |
 | Absurd TV offers in lower divisions | Fixed by the patch. See below. |
 | *Rellena* and *Auto* in *Vallas* seem to leave the last board unsold | Fixed by the patch. See below. |
+| A Cafeterías work shortens another services work ordered the same week | Fixed by the patch. See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
@@ -258,6 +259,28 @@ The memory layer's diagnostic fill of new memory (`fill_new`) was once thought t
 **Cause:** *Rellena* draws each section again before it looks for each offer to sell, and before it starts the next section, but never after a sale. So the last offer sold in a section shows up as sold only when the next section starts. For the last section there is no next one, and the screen keeps showing its last sale as unsold.
 
 **Fix:** after the loop over the sections, *Rellena* shows the current section again, as the loop does before each section: `0x4E5110(section, 0)` and the redraw. The new code (about 40 bytes) goes in three padding runs linked by short jumps, VA `0x4CCFC1`, `0x4CD001` and `0x4CD041`, from VA `0x4E593B`. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). The automatic sale when the days advance (`0x4ABA30`) doesn't draw anything, and the screen shows the right state when it's opened.
+
+### Two services works at once
+
+**Symptom:** in *Finanzas → Estadio → Remodelar → Servicios*, ordering *Tienda del club* (for example *Cinco*, 5 weeks) and then, the same week, a *Cafeterías* work: the Tienda takes the Cafeterías' duration, and both finish together. In *Obras* the Tienda's weeks change to the Cafeterías'. In the other order, the second work can't be ordered: its options are disabled.
+
+**The services works:** the game builds one services work at a time. The stadium object keeps two kinds:
+
+| Field | Content |
+|---|---|
+| `+0x454` | The pending *Enfermería*, *Tienda del club* or *Lavabos-W.C.* work, as `0x1FF + row × 4 + option`; −1 when none. Reset to −1 when it finishes (VA `0x4CD7D7`). |
+| `+0x464` | The pending *Cafeterías* work, an index into the cafeterías' entries at `+0x1B8` (`0x1C` bytes each: finished at `+0`, weeks left at `+4`, option at `+8`, cost at `+0x18`); −1 when none. |
+| `+0x1A8`, `+0x1A4` | The services works' weeks left and weekly cost, shared by both kinds |
+
+| VA | What it does |
+|---|---|
+| `0x4CD050` | The stadium's update, every week and right after *Aceptar*; for the services it writes `+0x1A8`/`+0x1A4` from whichever work is pending |
+| `0x4DDCE0` | Draws the *Remodelar* panels and enables each option |
+| `0x4DEE70` | *Aceptar*: asks for confirmation, then, for a cafetería row, `0x4DEF20` sets `+0x464` and the entry (`0x8AAEB0`) |
+
+**Cause:** *Enfermería*, *Tienda* and *Lavabos* enable their options only when no work of either kind is pending (`+0x454` through the panel's argument, and `+0x464`). The *Cafeterías* rows, drawn by their own code, check only `+0x464` (VA `0x4DE536`). So right after a Tienda work is ordered, a Cafeterías work can still be ordered; the weekly update then writes the Cafeterías' weeks and cost over the Tienda's in the shared `+0x1A8`/`+0x1A4`, and when that countdown ends both are done. Found with the debugger: the Cafeterías *Aceptar* found `+0x464` at −1 with the Tienda work already ordered.
+
+**Fix:** the Cafeterías rows check both: at VA `0x4DE536`, instead of reading `+0x464`, a call to new code in the padding at VA `0x4DF421` reads `+0x464` and ANDs it with `+0x454`; the result is −1 only if neither work is pending, and the original `inc`/`jne` that follows does the rest. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). The game keeps building one services work at a time, as designed.
 
 ### Youth player offered a salary of 0
 

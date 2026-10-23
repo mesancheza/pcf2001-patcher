@@ -65,13 +65,15 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 | | `0xCCFC1` | `90` × 15 | `C6 44 24 68 03 6A 00 FF B5 DC 21 00 00 EB 31` |
 | | `0xCD001` | `90` × 13 | `8B CD E8 08 81 01 00 6A 01 8B CD EB 33` |
 | | `0xCD041` | `90` × 13 | `FF 15 60 A0 A6 00 33 C0 E9 F4 88 01 00` |
+| [Two services works at once](GAME-INTERNALS.md#two-services-works-at-once) | `0xDE536` | `8B 88 64 04 00 00` | `E8 E6 0E 00 00 90` |
+| | `0xDF421` | `90` × 13 | `8B 88 64 04 00 00 23 88 54 04 00 00 C3` |
 
-In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `21feda12b24ac3f58eccf41df5e9da05d5af6f050c5d884e61196e996df8ef89` |
+| SHA-256 after | `47958eedac5809e34bfb8244fbf566caff3f2cab1c3815f0f5f15db97522ac9d` |
 
 ## Applying
 

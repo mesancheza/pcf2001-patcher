@@ -56,9 +56,9 @@ const PatchedFile kPatchedFiles[] = {
      {{0xFE960, {0x01}, {0x03}}}},
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "21feda12b24ac3f58eccf41df5e9da05d5af6f050c5d884e61196e996df8ef89",
+    {kGameFiles[0], "47958eedac5809e34bfb8244fbf566caff3f2cab1c3815f0f5f15db97522ac9d",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
-     L"Rellena, fixed",
+     L"Rellena, two services works at once, fixed",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -123,7 +123,18 @@ const PatchedFile kPatchedFiles[] = {
        {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
        {0xFF, 0x15, 0x60, 0xA0, 0xA6, 0x00,  // call dword ptr [0xA6A060] (redraw)
         0x33, 0xC0,                       // xor eax,eax (always 0 here; sets ZF for the je that follows)
-        0xE9, 0xF4, 0x88, 0x01, 0x00}}}},  // jmp 0x4E5942
+        0xE9, 0xF4, 0x88, 0x01, 0x00}},   // jmp 0x4E5942
+      // Two services works at once: the Remodelar screen lets a Cafeterías work be ordered while an Enfermería,
+      // Tienda or Lavabos work (the stadium's +0x454) is pending, and the two share one weekly countdown. Enable
+      // the Cafeterías options only when neither kind of services work is pending, as the other rows already do.
+      {0xDE536,
+       {0x8B, 0x88, 0x64, 0x04, 0x00, 0x00},         // mov ecx,[eax+464h]
+       {0xE8, 0xE6, 0x0E, 0x00, 0x00, 0x90}},        // call 0x4DF421; nop
+      {0xDF421,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x8B, 0x88, 0x64, 0x04, 0x00, 0x00,  // mov ecx,[eax+464h] (pending Cafeterías work, -1 if none)
+        0x23, 0x88, 0x54, 0x04, 0x00, 0x00,  // and ecx,[eax+454h] (pending other services work): -1 only if both are
+        0xC3}}}},                         // ret
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)
