@@ -335,6 +335,31 @@ Last, the player must fit at least one of the positions searched: his rating for
 
 Each player the search keeps has his ratings at `+0xF5` to `+0xFE` raised in the database: a value *x* below 15 becomes (*x* + 1) × 2. A search made for no team (ID 0) skips the two team checks: the mod makes every search do so, with one jump at VA `0x48DA2B`.
 
+### Foreign players
+
+How the game limits foreign players, which the mods `extranjeros-sin-limite-en-plantilla` and `extranjeros-sin-limite-en-alineacion` change ([MODS.md](MODS.md#extranjeros-sin-limite-en-plantilla)).
+
+**The competition decides.** A club's competition (looked up from the team record's `+0xD8` through `0x5FA010`) is an object whose class sets the rules through virtual methods. Every competition class shares `0x5E8880` at `+0xCC`.
+
+| Method | What it returns |
+|---|---|
+| `+0x8C` | The most foreign players a squad may have: 65535 (no limit, `0x53FD80`), 6, 5, 4, 3, or 0 (none, in three competitions: the vtables at `0xA7A69C`, `0xA7CBE0` and `0xA7CEF8`) |
+| `+0x94` | The most foreign players a line-up may have: 3, 4 or 6 |
+| `+0x98` | The line-up error text (*"No se permite alinear a más de 3 jugadores extracomunitarios"*) |
+| `+0xC8` | Whether a nationality (one byte) is foreign in the competition |
+
+Many of these are one-instruction functions such as `mov eax,4; ret`, which the linker merged with every identical function: `0x53FD90` (`mov eax,3; ret`) fills 173 vtable slots, most of them unrelated.
+
+| VA | What it does |
+|---|---|
+| `0x4B1C90` | Whether a player is foreign in a competition: his nationality (`+0x61`) is, and so is his second one (`+0x13E`) if he has one. Called from 40 places |
+| `0x49A7E0` | How many of a club's players are foreign in its competition. Called only by the 14 squad limit checks |
+| `0x49A780` | How many of a club's players in the line-up are foreign |
+
+**The squad limit:** each of the 14 checks (offers and signings at `0x4FF25C` and `0x954A07`, youth promotion, the other clubs' transfers) refuses when the count reaches `+0x8C`, with *"No puedes tener extranjeros en tu plantilla"* when the maximum is 0 and *"No puedes tener más extranjeros en tu plantilla"* otherwise. `0x5064D1` refuses to offer a foreign player to some clubs (*"No puedes ofrecer jugadores extranjeros a este equipo"*).
+
+**The line-up limit:** `+0x94` is read in only six places: confirming the line-up (`0x969068`: more than the maximum shows `+0x98`'s text), swapping two players (`0x41F4F8`), and the automatic line-ups (`0x493470`, `0x493CBF`, `0x4944FC`, `0x495D49`), where `0x4940F0` lets a player in if he is fit and either not foreign or fewer foreign players than the maximum were picked.
+
 ### Youth player offered a salary of 0
 
 **Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.
