@@ -23,6 +23,9 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | `extranjeros-sin-limite-en-plantilla` | *Sin límite de extranjeros en la plantilla* | Any number of foreign players can be signed, also in the divisions that allow none, by every club |
 | `extranjeros-sin-limite-en-alineacion` | *Sin límite de extranjeros en las alineaciones* | Any number of foreign players can be in a line-up, for every club, automatic line-ups included |
 | `dorsales-en-todas-las-competiciones` | *Dorsales en todas las competiciones* | Shirt numbers can be chosen in every league and division, not only in the four competitions that had them |
+| `banderas-de-todos-los-jugadores` | *Banderas de todos los jugadores* | Player lists show every player's flag, not only the foreign players' |
+| `pais-de-nacimiento-para-todos` | *País de nacimiento para todos* | Every player born outside his nationality's country is domestic, not foreign, in both countries: his nationality's and his country of birth's, as the nationalised ones already were |
+| `bandera-del-pais-de-nacimiento` | *Bandera del país de nacimiento* | Players' flags show their country of birth when the game knows it, instead of their nationality |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -71,6 +74,73 @@ Only four competitions use fixed shirt numbers ([GAME-INTERNALS.md](GAME-INTERNA
 **Known limitation:** the database has no shirt numbers for the clubs of the other competitions, so their players start with repeated numbers, mostly 1, until they're chosen on the *Dorsales* screen. The numbers are only shown: the game tells players apart by their records, so repeated numbers have no other effect. Giving those clubs unique numbers automatically was considered and left out: it needs new code, and could overwrite numbers chosen on purpose.
 
 Tested with a club of a competition without shirt numbers: the *Dorsales* entry appeared, numbers could be chosen, and line-ups kept them.
+
+### `banderas-de-todos-los-jugadores`
+
+Player lists draw a player's flag only if he counts as foreign in the current competition ([GAME-INTERNALS.md](GAME-INTERNALS.md#flags-in-player-lists)); otherwise they jump over the block that draws it. In the fifteen places that do so, the jump becomes `nop`s. Each of those blocks only fetches the flag, places it and draws it, so nothing else changes.
+
+| File | Offsets | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x2BF1`, `0x36871`, `0x3E112`, `0x12484E`, `0x126955`, `0x3DF10F`, `0x4C9D12`, `0x559599` | `74 xx` (`je`, over the flag) | `90 90` |
+| | `0x3331A`, `0x35DD5`, `0x361CC`, `0x5234C`, `0x52795`, `0x11F6EF`, `0x11AF1F` | `0F 84 xx 00 00 00` (`je`, over the flag) | `90 90 90 90 90 90` |
+
+The flag of a nationality with no image would make `0x4C5D30` read through a null pointer, but every nationality's flag was already shown somewhere in the original game: in any competition where it is foreign.
+
+Tested in the squad, *Jóvenes promesas* and other player lists: every player showed his flag, and no screen failed.
+
+**Not covered:** the team selection screen at the start of a game (`tx_pcfwinseleccionpro`) shows a club's squad without any flags, foreign players included: it never draws them, so there is nothing to enable. Traced: clicking clubs there never asks for a flag (`0x4C5D30`).
+
+### `pais-de-nacimiento-para-todos`
+
+The database has each player's nationality and, in full records, his country of birth and a "nationalised" flag. The game keeps the country of birth only for the players marked nationalised, and counts them as from both countries for the foreign-player rules ([GAME-INTERNALS.md](GAME-INTERNALS.md#nationality-and-country-of-birth)); for the others it drops it when it reads the database. The mod keeps it for every player.
+
+**What it does:** every player born outside his nationality's country becomes domestic in both countries. For the foreign-player rules (signings, squads and line-ups, [GAME-INTERNALS.md](GAME-INTERNALS.md#foreign-players)), he doesn't count as foreign in the competitions of his nationality's country, as before, nor in those of his country of birth, which is new. Davids (Netherlands, born in Suriname) is domestic in the Netherlands and in Suriname, and foreign everywhere else, as before. That is how the game already treated the players the database marks as nationalised; the mod treats the others the same way. In the database supplied with the game that changes 324 players, such as Davids and Seedorf; players born in their nationality's country are unaffected. With `bandera-del-pais-de-nacimiento`, their flag also shows their country of birth.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0xAE4D1` | `75 07` (`jne 0x4AE4DA`: keep it only if nationalised) | `EB 07` (`jmp 0x4AE4DA`: always keep it) |
+
+It changes how the game reads the database, so it applies to games started after installing it: a saved game keeps the data it was saved with. Removing it doesn't change games already started with it.
+
+### `bandera-del-pais-de-nacimiento`
+
+Where a player list reads the nationality to draw the flag (the fourteen places of `banderas-de-todos-los-jugadores` that draw a player's flag), it calls a small function instead, which returns the country of birth when the game has one and the nationality otherwise. The game has a country of birth for the players the database marks as nationalised, or for every player born outside his nationality's country with `pais-de-nacimiento-para-todos`.
+
+Each place reads the nationality with `xor reg,reg; mov regL,[player+61h]`, 5 bytes, which become a 5-byte `call`. The places use seven pairs of registers (the player, the result), so there are seven functions, each in a 15-byte padding run between two of the game's functions:
+
+```
+movzx reg, byte ptr [player+13Eh]   ; country of birth, 0 if unknown
+test  reg, reg
+jnz   done
+mov   regL, byte ptr [player+61h]   ; the nationality (reg is already 0)
+done: ret
+```
+
+| File offset (VA) | Registers | Bytes |
+|---|---|---|
+| `0xB42C1` (`0x4B42C1`) | `edi` → `edx` | `0F B6 97 3E 01 00 00 85 D2 75 03 8A 57 61 C3` |
+| `0xB45E1` (`0x4B45E1`) | `edi` → `eax` | `0F B6 87 3E 01 00 00 85 C0 75 03 8A 47 61 C3` |
+| `0xB5081` (`0x4B5081`) | `edi` → `ecx` | `0F B6 8F 3E 01 00 00 85 C9 75 03 8A 4F 61 C3` |
+| `0xB5C61` (`0x4B5C61`) | `ebp` → `eax` | `0F B6 85 3E 01 00 00 85 C0 75 03 8A 45 61 C3` |
+| `0xB6A11` (`0x4B6A11`) | `edx` → `eax` | `0F B6 82 3E 01 00 00 85 C0 75 03 8A 42 61 C3` |
+| `0xB6A41` (`0x4B6A41`) | `ebx` → `edx` | `0F B6 93 3E 01 00 00 85 D2 75 03 8A 53 61 C3` |
+| `0xB7381` (`0x4B7381`) | `eax` → `edx` | `0F B6 90 3E 01 00 00 85 D2 75 03 8A 50 61 C3` |
+
+Each run was `90` × 15, after a `ret` and before the next function, and nothing in the game refers to it.
+
+| File offset (VA) | Before | After |
+|---|---|---|
+| `0x2BF7` (`0x402BF7`), `0x3333C`, `0x35DE1`, `0x361D8`, `0x52371`, `0x4C9D18`, `0x55959F` | `33 D2 8A 57 61` | `call 0x4B42C1` |
+| `0x3E118` (`0x43E118`), `0x527BA` | `33 C0 8A 47 61` | `call 0x4B45E1` |
+| `0x36879` (`0x436879`) | `33 C9 8A 4F 61` | `call 0x4B5081` |
+| `0x11F6F9` (`0x51F6F9`) | `33 C0 8A 45 61` | `call 0x4B5C61` |
+| `0x124860` (`0x524860`) | `33 C0 8A 42 61` | `call 0x4B6A11` |
+| `0x12695D` (`0x52695D`) | `33 D2 8A 53 61` | `call 0x4B6A41` |
+| `0x3DF119` (`0x7DF119`) | `33 D2 8A 50 61` | `call 0x4B7381` |
+
+The fifteenth place of the flags mod (`0x51AF17`) draws a nationality from a list, not a player's, and keeps it. On its own, without the other two mods, this one changes only the flags the game already shows: those of foreign players.
+
+Tested in steps, with Inter: with `banderas-de-todos-los-jugadores` only, every player showed his nationality's flag (Zanetti Italy, Davids Netherlands); adding this mod, Zanetti (marked nationalised) showed Argentina and Davids still the Netherlands; adding `pais-de-nacimiento-para-todos` and starting a new game, Davids and Seedorf showed Suriname.
 
 ## How it works
 

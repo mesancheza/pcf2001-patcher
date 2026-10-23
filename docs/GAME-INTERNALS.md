@@ -352,7 +352,7 @@ Many of these are one-instruction functions such as `mov eax,4; ret`, which the 
 
 | VA | What it does |
 |---|---|
-| `0x4B1C90` | Whether a player is foreign in a competition: his nationality (`+0x61`) is, and so is his second one (`+0x13E`) if he has one. Called from 40 places |
+| `0x4B1C90` | Whether a player is foreign in a competition: his nationality (`+0x61`) is, and so is his country of birth (`+0x13E`) if the game kept it ([Nationality and country of birth](#nationality-and-country-of-birth)). Called from 40 places |
 | `0x49A7E0` | How many of a club's players are foreign in its competition. Called only by the 14 squad limit checks |
 | `0x49A780` | How many of a club's players in the line-up are foreign |
 
@@ -376,6 +376,35 @@ The game asks `+0x9C` in nine places, all on a club's competition:
 | `0x493A2E`, `0x4940AC`, `0x49D42A` | After a line-up is set, the numbers stay (without: `0x4BED50`) |
 | `0x49B27F` | The club's processing in `0x49B240` keeps the numbers |
 | `0x49B8F7`, `0x49C4B4`, `0x4AC848` | Which messages the club gets (`0x489`, `0x47F`; without: `0x485`), not identified yet |
+
+### Flags in player lists
+
+How player lists decide whether to show a player's flag, which the mod `banderas-de-todos-los-jugadores` changes ([MODS.md](MODS.md#banderas-de-todos-los-jugadores)).
+
+`0x4C5D30` returns a nationality's flag from the flags object (the game context's `+0x58`); it reads through a null pointer for a nationality outside its table. Player lists call it only for a player who is foreign in the current competition (the game context's `+0x6C`): fourteen places test `0x4B1C90` ([Foreign players](#foreign-players)) and jump over the flag when he isn't, and one (`0x51AF17`) asks the competition's `+0xC8` about a nationality code from a list, not yet identified. The other thirteen calls of `0x4C5D30` draw clubs' or competitions' flags (the team record's `+0xA4` or `+0x112`) and don't depend on any test.
+
+| Foreign test | Jump over the flag |
+|---|---|
+| `0x402BEA`, `0x43686A`, `0x43E10B`, `0x524847`, `0x52694E`, `0x7DF108`, `0x8C9D0B`, `0x959592` | Short `je`, 7 bytes after the call |
+| `0x433313`, `0x435DCE`, `0x4361C5`, `0x452345`, `0x45278E` (*Jóvenes promesas*), `0x51F6E8` | Near `je`, 7 bytes after the call |
+| `0x51AF17` (competition `+0xC8`) | Near `je` at `0x51AF1F` |
+
+### Nationality and country of birth
+
+What the game keeps of a player's countries, which the mods `pais-de-nacimiento-para-todos` and `bandera-del-pais-de-nacimiento` change ([MODS.md](MODS.md#pais-de-nacimiento-para-todos)).
+
+| Player | Content |
+|---|---|
+| `+0x61` | Nationality, from the database. Naturalisation (`0x4AF4B6`) overwrites it with `+0x64` |
+| `+0x13E` | Country of birth, from the database, but only for players the database marks as nationalised; 0 for the others |
+| `+0x64` | The country he lives in: his club's (`+0x112` of the club), set when he moves (`0x4AF734`) |
+| `+0x65` | Years living there, which naturalisation needs; bit 7: nationality requested (`0x4EB780`) |
+
+**The database:** a player record (`JUG00022.FDI`) has, after the nationality and appearance, a "nationalised" flag, the date of birth, height and weight; then, in full records only, the country of birth (one byte) and texts such as the place of birth (field names from the community's Editor PCF 2001). The loader (`0x4AE2C0`) reads the flag into a local, stores the country of birth at `+0x13E`, and then writes 0 over it unless the flag is set (`jne` at `0x4AE4D1`); it skips the texts. Short records (`+4` of the record non-zero) have none of this, and get 0.
+
+**In the database supplied with the game** (35,346 players): 12,081 short records; 520 nationalised, 506 of them born outside their nationality's country; and 324 players born outside it but not marked nationalised, such as Davids and Seedorf (Netherlands, born in Suriname), whose country of birth the game drops.
+
+**What uses the country of birth:** the foreign test (`0x4B1C90`): a player is foreign only if his nationality and his country of birth both are. So a nationalised player counts as from both countries.
 
 ### Youth player offered a salary of 0
 

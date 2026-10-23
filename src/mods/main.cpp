@@ -87,6 +87,37 @@ void FillList(HWND dialog)
         ListView_SetItemState(list, 0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 }
 
+// Makes the list as tall as its mods need, so it never scrolls, and moves what's below it (the window grows or
+// shrinks with it). The layout in mods.rc only sets the list's starting height.
+void FitList(HWND dialog)
+{
+    HWND list = GetDlgItem(dialog, IDC_LIST);
+    RECT outer, inner;
+    GetWindowRect(list, &outer);
+    GetClientRect(list, &inner);
+    RECT last{};
+    ListView_GetItemRect(list, static_cast<int>(Mods().size()) - 1, &last, LVIR_BOUNDS);
+    const int height = last.bottom + 2 + (outer.bottom - outer.top) - inner.bottom;  // a little margin, the border
+    const int delta = height - (outer.bottom - outer.top);
+    SetWindowPos(list, nullptr, 0, 0, outer.right - outer.left, height, SWP_NOMOVE | SWP_NOZORDER);
+    for (HWND child = GetWindow(dialog, GW_CHILD); child; child = GetWindow(child, GW_HWNDNEXT))
+    {
+        RECT rect;
+        GetWindowRect(child, &rect);
+        if (rect.top < outer.bottom)
+            continue;
+        MapWindowPoints(nullptr, dialog, reinterpret_cast<POINT*>(&rect), 2);
+        SetWindowPos(child, nullptr, rect.left, rect.top + delta, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+    }
+    RECT window;
+    GetWindowRect(dialog, &window);
+    SetWindowPos(dialog, nullptr, window.left, window.top - delta / 2, window.right - window.left,
+                 window.bottom - window.top + delta, SWP_NOZORDER);  // still centred
+    // Without a scroll bar the column can take the whole width.
+    GetClientRect(list, &inner);
+    ListView_SetColumnWidth(list, 0, inner.right);
+}
+
 INT_PTR CALLBACK MainDialog(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -97,9 +128,11 @@ INT_PTR CALLBACK MainDialog(HWND dialog, UINT message, WPARAM wParam, LPARAM lPa
                         L"Los mods cambian cómo se juega. Son opcionales: marca los que quieras, desmarca los que quieras "
                         L"quitar y aplica los cambios. Se instalan sobre el parche, que tiene que estar aplicado.");
         FillList(dialog);
+        FitList(dialog);
         Refresh(dialog);
         ShowModDescription(dialog);
-        return TRUE;
+        SetFocus(GetDlgItem(dialog, IDC_LIST));  // not the folder, whose text would start selected
+        return FALSE;
     case WM_NOTIFY:
     {
         const auto* header = reinterpret_cast<const NMHDR*>(lParam);
