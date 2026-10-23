@@ -1,0 +1,96 @@
+// Dialogs and version information of the installer. Spanish only (docs/DESIGN.md D10).
+#pragma code_page(65001)
+
+#include <windows.h>
+#include "resource.h"
+
+LANGUAGE LANG_SPANISH, SUBLANG_SPANISH_MODERN
+
+#define PAGE_STYLE DS_SETFONT | DS_SHELLFONT | WS_CHILD | WS_DISABLED | WS_CAPTION
+
+IDD_WELCOME DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    // Text set in wizard.cpp: the resource compiler cuts control texts at 256 characters.
+    LTEXT "", IDC_TEXT, 0, 0, 300, 150
+END
+
+IDD_SOURCE DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "Unidad con el CD de PC FÚTBOL 2001:", IDC_STATIC, 0, 0, 300, 10
+    COMBOBOX IDC_CD_LIST, 0, 13, 200, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON "Buscar de nuevo", IDC_CD_REFRESH, 206, 12, 94, 15
+    PUSHBUTTON "Elegir carpeta...", IDC_CD_BROWSE, 206, 30, 94, 15
+    LTEXT "", IDC_CD_STATUS, 0, 54, 300, 96
+END
+
+IDD_TARGET DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "Carpeta donde instalar el juego:", IDC_STATIC, 0, 0, 300, 10
+    EDITTEXT IDC_TARGET_EDIT, 0, 13, 200, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON "Examinar...", IDC_TARGET_BROWSE, 206, 12, 94, 15
+    LTEXT "", IDC_TARGET_SPACE, 0, 32, 300, 10
+    LTEXT "El juego guarda sus partidas y su configuración dentro de su carpeta, por eso no se instala en ""Archivos de programa"".", IDC_STATIC, 0, 48, 300, 20
+    AUTOCHECKBOX "Crear un acceso directo en el escritorio", IDC_DESKTOP, 0, 78, 300, 12, WS_TABSTOP
+END
+
+IDD_UPDATES DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "Carpeta con las actualizaciones oficiales de Dinamic:", IDC_STATIC, 0, 0, 300, 10
+    EDITTEXT IDC_UPDATES_EDIT, 0, 13, 200, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON "Examinar...", IDC_UPDATES_BROWSE, 206, 12, 94, 15
+    LTEXT "", IDC_UPDATES_STATUS, 0, 32, 300, 118
+END
+
+IDD_PROGRESS DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "", IDC_PROGRESS_TEXT, 0, 0, 300, 20
+    CONTROL "", IDC_PROGRESS_BAR, "msctls_progress32", WS_BORDER, 0, 24, 300, 12
+    LTEXT "Las actualizaciones de Dinamic abren su propia ventana un momento: el instalador la maneja solo, no hace falta tocar nada.", IDC_STATIC, 0, 46, 300, 20
+END
+
+IDD_FINISH DIALOGEX 0, 0, 300, 150
+STYLE PAGE_STYLE
+CAPTION "Instalar PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "", IDC_FINISH_TEXT, 0, 0, 300, 150
+END
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION SETUP_VERSION_COMMAS
+PRODUCTVERSION SETUP_VERSION_COMMAS
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "0C0A04B0"
+        BEGIN
+            VALUE "FileDescription", "Instalador de PC FÚTBOL 2001 (no oficial)"
+            VALUE "FileVersion", SETUP_VERSION_STRING
+            VALUE "ProductName", "pcf2001-patcher"
+            VALUE "ProductVersion", SETUP_VERSION_STRING
+            VALUE "OriginalFilename", "pcf2001-setup.exe"
+            VALUE "LegalCopyright", "Licencia MIT. No afiliado a Dinamic Multimedia."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0C0A, 1200
+    END
+END

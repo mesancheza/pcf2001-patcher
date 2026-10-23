@@ -38,10 +38,13 @@ Everything is built as 32-bit, because it all runs inside the game's 32-bit proc
 
 | File | What it is |
 |---|---|
-| `build\<config>\src\backend\dcogl.dll` | The new graphics component (Direct3D 11) and the memory compatibility layer. Part of the patch. |
-| `build\<config>\tools\backend-trace\dcogl.dll` | Development tool: logs how the game uses its graphics interface. See [TOOLS.md](TOOLS.md). Not part of the patch. |
+| `build\<config>\src\installer\pcf2001-setup.exe` | The game installer. See [INSTALLER.md](INSTALLER.md). Released. |
+| `build\<config>\src\patcher\pcf2001-patch.exe` | The patcher, with `dcogl.dll` inside. See [PATCHER.md](PATCHER.md). Released. |
+| `build\<config>\src\backend\dcogl.dll` | The new graphics component (Direct3D 11) and the memory compatibility layer. Released inside the patcher. |
+| `build\<config>\tools\backend-trace\dcogl.dll` | Development tool: logs how the game uses its graphics interface. See [TOOLS.md](TOOLS.md). Not released. |
+| `build\<config>\tools\is6-cab\is6-cab.exe` | Development tool: lists, checks and extracts the CD's InstallShield archive. See [TOOLS.md](TOOLS.md#is6-cab). Not released. |
 
-`cmake --install build\Release --prefix <folder>` copies exactly the files a release ships into `<folder>`. The patcher will be added here when it's written.
+`cmake --install build\Release --prefix <folder>` copies exactly the files a release ships into `<folder>`.
 
 ## Toolchain used for development
 

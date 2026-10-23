@@ -10,6 +10,7 @@ An unofficial, open-source patch that makes **PC FÚTBOL 2001** (Dinamic Multime
 
 | Problem on modern Windows | Status |
 |---|---|
+| The CD's setup doesn't run (*"Access is denied"* and other errors), so the game can't even be installed | Replaced by our own installer, `pcf2001-setup.exe`, which also applies Dinamic's updates (in testing) |
 | The game stops at startup with *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Fixed by the new graphics component (in testing) |
 | Full screen switches the whole desktop to 800×600 | Fixed (in testing): the game is drawn at its own resolution and scaled to your screen, keeping the aspect ratio |
 | Windowed mode draws some screen elements in the wrong place | Should be fixed by the new graphics component; not tested yet |
@@ -21,11 +22,16 @@ The details of each problem are in [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.
 
 ## What you will need
 
-- Your own copy of PC FÚTBOL 2001, updated with Dinamic's official **version 3.6** update (`PCFPATCH3.6.EXE`). The main menu shows "V3.6" in the top-right corner once it is installed. [docs/DESIGN.md](docs/DESIGN.md#d1-target-dinamics-v36-only) explains why only 3.6 is supported.
-- The game CD, or an image of it mounted as a drive. The patch keeps the game's CD check, and Windows 10/11 can mount an `.iso` file with a double-click.
+- Your own copy of PC FÚTBOL 2001: the game CD, or an image of it. The game keeps its CD check, and Windows 10/11 can mount an `.iso` file with a double-click.
+- Dinamic's official updates: the **version 3.6** update (`PCFPATCH3.6.EXE`) and the 12 data updates (`PCFACT01.exe` to `PCFACT12.exe`). Our installer applies them all; [docs/DESIGN.md](docs/DESIGN.md#d1-target-dinamics-v36-only) explains why only 3.6 is supported.
 - Windows 10 or 11.
 
-The patch does **not** need dgVoodoo, compatibility modes, administrator rights, or any extra runtime.
+Then, two steps:
+
+1. **Install the game** with `pcf2001-setup.exe` ([docs/INSTALLER.md](docs/INSTALLER.md)). It installs from your CD and applies Dinamic's updates. It asks for administrator rights once.
+2. **Apply the patch** with `pcf2001-patch.exe` ([docs/PATCHER.md](docs/PATCHER.md)). It can be removed again the same way.
+
+Playing needs no administrator rights, and nothing needs dgVoodoo, compatibility modes or any extra runtime.
 
 ## What the patch contains, and what it doesn't
 
@@ -60,6 +66,8 @@ Say what you were doing when it happened, and roughly at what time: each line of
 | [docs/DESIGN.md](docs/DESIGN.md) | Goals, scope, and every design decision with its reasoning |
 | [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) | What we have learned about how the game works and why it fails on modern Windows |
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | The game's graphics plug-in interface, which the new graphics component implements |
+| [docs/INSTALLER.md](docs/INSTALLER.md) | The game installer: what it installs, and how |
+| [docs/PATCHER.md](docs/PATCHER.md) | The patcher: what it changes, and how it applies and removes it |
 | [docs/BUILDING.md](docs/BUILDING.md) | How to build everything from source |
 | [docs/RELEASING.md](docs/RELEASING.md) | How releases are built and published |
 | [docs/TOOLS.md](docs/TOOLS.md) | Development tools in this repository |

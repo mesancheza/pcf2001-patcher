@@ -20,6 +20,25 @@ These notes describe the game's behavior in our own words. They don't contain Di
 
 Both `pcf2001.exe` and `manager.exe` look for a file named `DISK.ID`, containing `PCF9 00`, at the root of a drive that Windows reports as a CD-ROM. A disc image mounted with Windows 10/11's built-in "Mount" passes the check. The patch keeps this check ([DESIGN.md D5](DESIGN.md#d5-keep-the-cd-check)).
 
+## The CD's installer
+
+The CD's `SETUP.EXE` is **InstallShield 6.11** (32-bit). On Windows 10/11 it fails while initializing, most often with *"Access is denied"*, and with other errors depending on the compatibility settings used. InstallShield 6 runs its engine (`IKERNEL.EX_`, unpacked as `iKernel.exe`) as a COM server registered in the system, which today's Windows doesn't allow in the way it expects. Its script also offers to install DirectX and Internet Explorer 5, neither of which installs on today's Windows. The patch doesn't try to make it work: it replaces it with its own installer ([INSTALLER.md](INSTALLER.md)).
+
+### The archive format
+
+The files are described by `DATA1.HDR` and stored in volumes `DATA1.CAB`, `DATA2.CAB`. The format is the one documented by the open-source *unshield* project for InstallShield 5–6; the installer has its own implementation (`src/installer/is6_cabinet.cpp`). All values are little-endian.
+
+- **Common header** (20 bytes, at the start of the `.HDR` and of each `.CAB`): signature `ISc(`, version (`0x0100600C`: InstallShield 6), volume information, offset and size of the cabinet descriptor (`0x200` in the `.HDR`).
+- **Cabinet descriptor** (offsets relative to its start): file table offset at `+0x0C`, directory count at `+0x1C`, file count at `+0x28`, offset of the file descriptors within the file table at `+0x2C`, then 71 file group list heads at `+0x3E` and 71 component list heads at `+0x15A`. Strings are null-terminated, at offsets relative to the descriptor.
+- **File table:** first one offset per directory name, then the file descriptors, 0x57 bytes each: flags (`+0x00`), uncompressed size (`+0x02`, 64-bit), compressed size (`+0x0A`), data offset (`+0x12`), MD5 of the uncompressed data (`+0x1A`), name offset (`+0x3A`), directory index (`+0x3E`), volume number (`+0x55`). Flags: 1 = split across volumes, 2 = obfuscated, 4 = compressed, 8 = invalid.
+- **File groups and components** are linked lists of (name offset, descriptor offset, next offset). A file group's descriptor gives its name and the range of files it holds (first and last index, at `+0x16` and `+0x1A`). A component's descriptor lists the file groups it uses (count at `+0x6F`, table offset at `+0x71`).
+- **Volume header** (after the common header of each `.CAB`): where the volume's first and last files start, and how much of them it holds, for files split across volumes.
+- **Compressed data** is a sequence of chunks: a 16-bit length, then that many bytes of raw DEFLATE data. Each chunk decompresses independently.
+- **Files without the "compressed" flag aren't in the volumes at all:** they are plain files on the CD (`GRAFICOS.PAK`, the `DBDAT`, `SFX` and `SIMULDAT` folders, `MMX\Utils.dll`…). Their folder on the CD doesn't always match the archive's directory, so the installer finds them by name and size and checks their MD5.
+- The end of `DATA1.HDR` lists the empty folders setup creates (`Notas`, `Save\Manager`, `Goles`), the registry value it writes (`HKLM\SOFTWARE\DINAMIC MULTIMEDIA\PC FÚTBOL 2001`, `DIR` = `<TARGETDIR>`), and the Start menu shortcuts (the game, *Desinstalar*, and two web links).
+
+The archive holds 438 files: the game (331 files once installed, see [INSTALLER.md](INSTALLER.md#what-gets-installed)), InstallShield's engine and setup files, old Microsoft runtime libraries for `System32`, and DirectX and Internet Explorer 5 installers.
+
 ## Startup failure: "No se pudo iniciar DirectX"
 
 ### How the game chooses a graphics backend
@@ -118,6 +137,16 @@ On Windows XP, shrinking a heap block always happened in place, so the interior 
 ## Text drawing reads outside its glyph image
 
 `Utils.dll` blends text into 32-bit surfaces with an 8-bit glyph mask (the function at RVA `0x25FE0`). For each row it reads the mask byte **before** checking whether the position is inside the mask, so it reads one byte before the mask's pixels. With the original backends, surface pixels were heap memory, where that byte is always readable. Memory that starts exactly at a page boundary may have nothing mapped before it, and then the game faults. The new backend allocates every surface's pixels with 4 KB of spare memory before and after them.
+
+## Default 3D settings
+
+On its first start, when `MainOpt.dat` doesn't exist yet, `manager.exe` (v3.6, the function at VA `0x60BDA0`) builds default settings for the 3D match modes:
+
+1. It picks the 3D backend (`dcd3d.dll`, if it can do 3D) and that backend's **last** device.
+2. It asks whether 640×480, then 320×240, are valid modes for it.
+3. If neither is, it reads the first entry of `CGFXMainWindow::Modes(device)` without checking that there is one.
+
+`Modes` looks the device number up in the **2D** backend, not the 3D one. On a PC where `dcd3d.dll` reports two DirectDraw devices ("Primary Display Driver" and the graphics card) and the 2D backend only one, `Modes` returns nothing and the game crashes reading a null pointer (at VA `0x60C027`). With Dinamic's backends the counts usually matched. The new backend reports as many devices as `dcd3d.dll` does, all of them the same Direct3D 11 output.
 
 ## Full-screen window always on top
 
