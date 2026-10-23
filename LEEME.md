@@ -26,6 +26,7 @@ También arregla fallos que el juego ya tenía en 2001:
 | En las divisiones más bajas, algunas ofertas de TV son absurdas, como 29.873.841 millones de pesetas "por todos los derechos" | Resuelto: las ofertas nuevas para esas divisiones ya no traen cantidad por todos los derechos, igual que las correctas, y las ofertas sin ningún dinero ya no aparecen. Las ofertas que ya estén en una partida guardada se quedan como están |
 | En *Estadio → Vallas*, *Rellena* y *Auto* parecen dejar sin vender la última valla de la última zona, hasta pulsar *Rellena* otra vez | Resuelto: la valla sí se vendía, pero la pantalla no se volvía a dibujar; ahora sí |
 | En *Estadio → Remodelar → Servicios*, encargar *Cafeterías* la misma semana que *Tienda del club*, *Enfermería* o *Lavabos* le da a la otra obra la duración de las cafeterías, y las dos terminan a la vez | Resuelto: como con los demás servicios, no se pueden encargar cafeterías mientras haya otra obra de servicios pendiente; el juego hace una cada vez |
+| Al terminar una cafetería, el coste semanal del estadio se lee de datos que no tienen nada que ver: casi siempre casi nada, pero puede ser un gasto absurdo en *Remodelar estadio* que arruina al club, y a menudo el encargado del campo avisa luego cada semana de que han terminado unas obras | Resuelto. Una partida guardada que ya reciba el aviso semanal lo seguirá recibiendo hasta su siguiente obra de servicios |
 
 Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) (en inglés).
 

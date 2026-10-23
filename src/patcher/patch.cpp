@@ -56,9 +56,9 @@ const PatchedFile kPatchedFiles[] = {
      {{0xFE960, {0x01}, {0x03}}}},
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "47958eedac5809e34bfb8244fbf566caff3f2cab1c3815f0f5f15db97522ac9d",
+    {kGameFiles[0], "8881a45c1baef4125cb2a5e786e4494f5b2989a35f846d00bbc885c7b8c7bd49",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
-     L"Rellena, two services works at once, fixed",
+     L"Rellena, two services works at once, services cost after a cafeteria is finished, fixed",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -134,7 +134,32 @@ const PatchedFile kPatchedFiles[] = {
        {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
        {0x8B, 0x88, 0x64, 0x04, 0x00, 0x00,  // mov ecx,[eax+464h] (pending Cafeterías work, -1 if none)
         0x23, 0x88, 0x54, 0x04, 0x00, 0x00,  // and ecx,[eax+454h] (pending other services work): -1 only if both are
-        0xC3}}}},                         // ret
+        0xC3}},                           // ret
+      // Services cost after a cafeteria is finished: the weekly update marks the work done, sets the current
+      // cafeteria work (+0x464) to -1, then recomputes the services' weekly cost from "entry -1", reading two
+      // unrelated fields as weeks and cost. Rewritten more compactly in place, the block ends by setting the
+      // services' weekly cost and weeks to 0 instead (skipping the increment of the code for a work with 0 weeks
+      // left, which would leave weeks at 1: a "works finished" message from the groundskeeper every week).
+      {0xCD91E,
+       {0x8B, 0x86, 0x64, 0x04, 0x00, 0x00, 0x6A, 0x03, 0x8D, 0x0C, 0xC5, 0x00, 0x00, 0x00, 0x00, 0x2B, 0xC8, 0xC6,
+        0x84, 0x8E, 0xB8, 0x01, 0x00, 0x00, 0x01, 0x8A, 0x56, 0x0D, 0xFE, 0xC2, 0x8B, 0xCB, 0x88, 0x56, 0x0D, 0xC7,
+        0x86, 0x64, 0x04, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xE8, 0x50, 0x50, 0xFF, 0xFF, 0x6A, 0x02, 0x8B, 0xCB,
+        0xE8, 0x77, 0x50, 0xFF, 0xFF},
+       {0x8B, 0x86, 0x64, 0x04, 0x00, 0x00,          // mov eax,[esi+464h]
+        0x6A, 0x03,                                  // push 3
+        0x8D, 0x0C, 0xC5, 0x00, 0x00, 0x00, 0x00,    // lea ecx,[eax*8]
+        0x2B, 0xC8,                                  // sub ecx,eax
+        0xC6, 0x84, 0x8E, 0xB8, 0x01, 0x00, 0x00, 0x01,  // mov byte ptr [esi+ecx*4+1B8h],1 (finished)
+        0xFE, 0x46, 0x0D,                            // inc byte ptr [esi+0Dh] (was mov dl / inc dl / mov back)
+        0x8B, 0xCB,                                  // mov ecx,ebx
+        0x83, 0x8E, 0x64, 0x04, 0x00, 0x00, 0xFF,    // or dword ptr [esi+464h],-1 (was a 10-byte mov)
+        0xE8, 0x58, 0x50, 0xFF, 0xFF,                // call 0x4C29A0 (moved: same target)
+        0x6A, 0x02,                                  // push 2
+        0x8B, 0xCB,                                  // mov ecx,ebx
+        0xE8, 0x7F, 0x50, 0xFF, 0xFF,                // call 0x4C29D0 (moved: same target)
+        0x33, 0xC0,                                  // xor eax,eax
+        0xEB, 0x42,                                  // jmp 0x4CD997 (weekly cost 0, weeks eax = 0)
+        0x90, 0x90, 0x90, 0x90}}}},
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

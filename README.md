@@ -26,6 +26,7 @@ It also fixes bugs the original game already had in 2001:
 | In the lowest divisions, some TV offers are absurd, such as 29.873.841 million pesetas "por todos los derechos" | Fixed: new offers for those divisions no longer have an amount for all the rights, like the correct ones, and offers with no money at all are left out. Offers already in a saved game stay as they are |
 | In *Estadio → Vallas*, *Rellena* and *Auto* seem to leave the last board of the last section unsold, until clicking *Rellena* again | Fixed: the board was sold, but the screen wasn't redrawn; now it is |
 | In *Estadio → Remodelar → Servicios*, ordering *Cafeterías* the same week as *Tienda del club*, *Enfermería* or *Lavabos* gives the other work the Cafeterías' duration, and both finish together | Fixed: as with the other services, Cafeterías can't be ordered while another services work is pending; the game builds one at a time |
+| After a cafeteria is finished, the stadium's weekly cost is read from unrelated data: usually close to nothing, but it can be an absurd *Remodelar estadio* expense that bankrupts the club, and often the groundskeeper then reports finished works every week | Fixed. A saved game already getting the weekly message keeps it until its next services work |
 
 The details of each problem are in [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md).
 

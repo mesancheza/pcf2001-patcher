@@ -177,7 +177,8 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 | Absurd TV offers in lower divisions | Fixed by the patch. See below. |
 | *Rellena* and *Auto* in *Vallas* seem to leave the last board unsold | Fixed by the patch. See below. |
 | A Cafeterías work shortens another services work ordered the same week | Fixed by the patch. See below. |
-| The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
+| Absurd *Remodelar estadio* expenses after a cafeteria is finished | Fixed by the patch. See below. |
+| The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. Fixed by the patch for new cases: see [Absurd stadium expenses after a cafeteria is finished](#absurd-stadium-expenses-after-a-cafeteria-is-finished). |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
 
@@ -281,6 +282,16 @@ The memory layer's diagnostic fill of new memory (`fill_new`) was once thought t
 **Cause:** *Enfermería*, *Tienda* and *Lavabos* enable their options only when no work of either kind is pending (`+0x454` through the panel's argument, and `+0x464`). The *Cafeterías* rows, drawn by their own code, check only `+0x464` (VA `0x4DE536`). So right after a Tienda work is ordered, a Cafeterías work can still be ordered; the weekly update then writes the Cafeterías' weeks and cost over the Tienda's in the shared `+0x1A8`/`+0x1A4`, and when that countdown ends both are done. Found with the debugger: the Cafeterías *Aceptar* found `+0x464` at −1 with the Tienda work already ordered.
 
 **Fix:** the Cafeterías rows check both: at VA `0x4DE536`, instead of reading `+0x464`, a call to new code in the padding at VA `0x4DF421` reads `+0x464` and ANDs it with `+0x454`; the result is −1 only if neither work is pending, and the original `inc`/`jne` that follows does the rest. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). The game keeps building one services work at a time, as designed.
+
+### Absurd stadium expenses after a cafeteria is finished
+
+**Symptom:** found with the strict test settings ([TOOLS.md](TOOLS.md#windows-page-heap), `fill_new=55`): two weeks after a cafeteria was finished, *Caja* showed *Remodelar estadio* expenses of 7.352.982.962.176 pesetas in each of weeks 46 and 47, and the club was left at −14,705,135,890,053 pesetas. Without the test settings the same bug costs nothing visible, or, with other leftovers in memory, a random amount.
+
+**Cause:** when a cafeteria work finishes, the weekly update (VA `0x4CD91E`) marks its entry finished and sets the current cafeteria work, the stadium's `+0x464`, to −1 ([Two services works at once](#two-services-works-at-once)). It then goes on to the code that recomputes the services' weekly cost from the current work's entry (VA `0x4CD959`), which reads `+0x464` again: −1. "Entry −1" is the 0x1C bytes before the entries at `+0x1B8`, so its weeks are the stadium's `+0x1A0` and its cost is `+0x1B4`, two fields with other uses. The services' weeks (`+0x1A8`) became 2 and their weekly cost (`+0x1A4`) the float at `+0x1B4` halved. `+0x1B4` holds two bytes the game sets (`FE FF`) and two it never does; in the original game those are usually 0, which makes a float of almost nothing, and with `fill_new=55` they were `55 55`, which makes about 14,700,000,000,000. Found in a dump of the running game: `+0x1A4` held `0x54D5FFFE`, which is `0x5555FFFE` (the dword at `+0x1B4`) divided by 2.
+
+**The groundskeeper's weekly "works finished":** every week the team pays each kind of stadium work its weekly cost while its weeks counter isn't 0, and when the counter is exactly 1 the groundskeeper reports the works finished (VA `0x4A6353`–`0x4A64A4`; message `0x3F1`, or `0x3F2` for some services). The stadium update decides the counter. The code that recomputes the services' weekly cost has a branch for a work with 0 weeks left (VA `0x4CD996`) that sets the cost to 0 but the weeks to 1, and never moves it again; the "entry −1" read above lands there whenever `+0x1A0` is 0. From then on the club pays 0 every week and the groundskeeper reports finished works every week: the bug players remember. It persists in saved games.
+
+**Fix:** the block that finishes the work ends by setting the services' weekly cost and weeks to 0 (VA `0x4CD997`, the 0-weeks branch without its increment), as the other services do when theirs finish, instead of recomputing from the current work. The block is rewritten more compactly in place to make room (`inc byte ptr [esi+0Dh]` for three instructions, `or dword ptr [esi+464h],-1` for a longer `mov`), with its two calls aimed at the same functions. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). A saved game whose services counter is already stuck at 1 keeps the weekly message until its next services work.
 
 ### Youth player offered a salary of 0
 
