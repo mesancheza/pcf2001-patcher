@@ -7,7 +7,7 @@
 
 LANGUAGE LANG_SPANISH, SUBLANG_SPANISH_MODERN
 
-IDD_MAIN DIALOGEX 0, 0, 330, 276
+IDD_MAIN DIALOGEX 0, 0, 330, 268
 STYLE DS_SETFONT | DS_SHELLFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 CAPTION "Mods para PC FÚTBOL 2001"
 FONT 9, "Segoe UI", 0, 0, 0x1
@@ -19,12 +19,13 @@ BEGIN
     LTEXT "", IDC_STATE, 18, 56, 294, 18
     // Text set in main.cpp: the resource compiler cuts control texts at 256 characters.
     LTEXT "", IDC_DESCRIPTION, 10, 84, 310, 26
+    // main.cpp makes the list as tall as its mods need, and moves the controls below.
     CONTROL "", IDC_LIST, WC_LISTVIEW, LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER |
             WS_BORDER | WS_TABSTOP, 10, 112, 310, 70
     LTEXT "", IDC_MOD_DESCRIPTION, 10, 186, 310, 28
     PUSHBUTTON "Aplicar los cambios", IDC_APPLY, 10, 218, 100, 16
     PUSHBUTTON "Cerrar", IDCANCEL, 250, 218, 70, 16
-    LTEXT "", IDC_RESULT, 10, 240, 310, 30
+    LTEXT "", IDC_RESULT, 10, 240, 310, 22
 END
 
 VS_VERSION_INFO VERSIONINFO
