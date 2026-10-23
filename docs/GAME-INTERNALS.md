@@ -169,12 +169,36 @@ This is a use-after-free: an ordering bug in the game's shutdown. It may have go
 
 ## Bugs reported in the original game
 
-Bugs players remember from the game as it was in 2001, on the Windows of its time. Whether the patch fixes them is still to be decided: so far it only fixes what modern Windows broke ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)).
+Bugs players remember from the game as it was in 2001, on the Windows of its time. The patch fixes the ones that crash the game; whether it fixes the others, which change how the game plays, is still to be decided ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)).
 
 | Bug | Details |
 |---|---|
+| Crash with the advertising boards on Auto and no groundskeeper | Fixed by the patch. See below. |
 | Absurd TV offers in lower divisions | See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
+
+### Crash with the advertising boards on Auto and no groundskeeper
+
+**Symptom:** with the advertising boards (*Vallas*, in the *Estadio* screen) set to *Auto* and no *Encargado del campo* (groundskeeper) hired, the game stops with *"La aplicación no puede continuar"* while it advances the days, every time. Players remember a crash in the *Estadio* section without a groundskeeper from the original game. `dcogl.log` shows an access violation at `MANAGER.EXE+0xaba8e`, reading address `0x00000001`.
+
+**To reproduce** (without the patch's fix): with no groundskeeper hired, set *Vallas* to *Auto* in *Estadio* and advance the days. Seen four times with Atl. Catania (Serie C1) in the 2000 preseason, the last two from a save made to test it, once within 15 seconds of advancing. With the fix, the same test save advances without crashing, and the messages go to the assistant.
+
+**The team's staff:** the object that holds the managed team's state (at least `0x6024` bytes; the team record at `+0x11C` points to it) has the hired employees at `+0x5FD4`, one pointer per job, null when nobody is hired. The order is the one of the *Personal del club* screen and the *Empleados* help page: 0 to 3 the tactical, technical, fitness and goalkeeping coaches, 4 the doctor, 5 the psychologist, 6 the observer, 7 the technical secretary, 8 the youth coach, 9 the scout, 10 the groundskeeper (checked against a save's hired staff and the pointers in a dump). Each employee object has its quality in the byte at `+1`.
+
+| VA | What it does |
+|---|---|
+| `0x4AB300` | Hires (or, with null, removes) the employee for a job. Removing touches only the job's pointer. |
+| `0x49F730` | Returns the employee for a job, or null. |
+| `0x4AB410` | Whether a kind of message has someone to go to: for kind 7, the groundskeeper (job 10); kind 8 is the assistant, always present. |
+| `0x4AB5C0` | Delivers a message to the employee its kind belongs to. If nobody is hired for it (`0x4AB410`), it goes to the assistant instead. |
+
+**The *Auto* option:** byte `+2` of the team state. The *Estadio* screen's handler for its control `0x3EC` (VA `0x4E5A10`) switches it on and off.
+
+**Cause:** while the days advance, the code at VA `0x49DFF6` calls the function at VA `0x4ABA30` when *Auto* is on (and game option 6, read by `0x4D0690`, is off). That function handles the boards on its own: for each of 4 groups (probably the sides of the ground) it collects the sponsors' offers from the team state's list at `+0x6018`, sorts them by a criterion that depends on the groundskeeper's quality (5 to 7 one way, 8 to 10 another, any other value keeps their order), and has VA `0x4AB930` accept them while there is room left. It reads the quality through `0x49F730` without checking for null, so with no groundskeeper it reads address 1. Every other place that needs the groundskeeper checks first, and messages for him go to the assistant through `0x4AB5C0`; this one doesn't.
+
+**Fix:** when there's no groundskeeper, quality 0: the boards are still sold automatically, taking the offers in the order they came, as the assistant would, and the messages go to the assistant as before. With a groundskeeper hired, nothing changes. The original instructions at VA `0x4ABA8C` have no room for a null check, so they jump to 13 bytes of new code in the padding after the function at `0x4AB5C0` (VA `0x4AB661`, 15 bytes of `nop` in v3.6), which jumps back. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
+
+Found with `dump_on_fault` ([TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnostic-mode)): the game catches the fault itself, so Windows never writes a dump.
 
 ### Absurd TV offers
 

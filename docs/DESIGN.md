@@ -99,6 +99,10 @@ How full screen works:
 
 Bugs that only appear on modern Windows, such as the garbled names, get fixed where they originate, not hidden by compatibility settings (D4). Each fix is documented: the file, the location, the original bytes, the new bytes, and why.
 
+**Crashes the original game already had get fixed too,** when the fix makes the game do what it does in the same situation elsewhere, so how the game plays doesn't change. The first: the advertising boards on *Auto* with no groundskeeper, where the game normally hands a missing employee's tasks to the assistant ([GAME-INTERNALS.md](GAME-INTERNALS.md#crash-with-the-advertising-boards-on-auto-and-no-groundskeeper)). Other bugs of the original game, which change how it plays, are decided one by one (non-goals).
+
+**Fixes to the game's code are byte changes in the game's files,** made by the patcher like the change to `gfxwin.dll` (D10): checked against the v3.6 bytes, backed up, and restored when the patch is removed. The alternative, changing the code in memory from `dcogl.dll` when the game starts, would leave the files unchanged, but the fixes would then depend on the new backend being loaded, and the files wouldn't show what the patch changes. When a fix needs more room than the instructions it replaces, it jumps to new code in the padding between the game's functions.
+
 ### D9. Toolchain: 32-bit C++, MSVC, CMake, static runtime
 
 - **C++ with Microsoft's compiler:** the new backend must match the binary layout of the original C++ objects, which were built with Microsoft Visual C++ 6. Modern MSVC produces a compatible layout for the simple class model these objects use.

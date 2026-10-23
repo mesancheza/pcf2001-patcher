@@ -20,8 +20,8 @@ struct KnownFile
     const char* sha256;
 };
 
-// The v3.6 files the patch knows (docs/DESIGN.md, D1). The patch only changes gfxwin.dll, but checks them all: the
-// new graphics component and its memory layer were made for exactly these.
+// The v3.6 files the patch knows (docs/DESIGN.md, D1). The patch changes some of them (kPatchedFiles), but checks
+// them all: the new graphics component and its memory layer were made for exactly these.
 const KnownFile kGameFiles[] = {
     {L"manager.exe", 7991296, "bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc"},
     {L"gfxwin.dll", 1097797, "d11c89b34f3d5aef1db32ef38b2259d6b0633ec2aa49fed66e582a00fa12a4c9"},
@@ -30,13 +30,72 @@ const KnownFile kGameFiles[] = {
     {L"DCSF.dll", 86016, "ec581d48fda3221d2544d154434862613d7c860b64c0ed3eb3209fde1d9a1fff"},
 };
 
-// The change to gfxwin.dll: its default graphics backend, an index into its list of backend names
-// (dcsf, dcsfx, dcd3d, dcogl), from 1 (dcsfx.dll, which fails on modern Windows) to 3 (dcogl.dll, the new
-// component). See docs/PATCHER.md.
-constexpr size_t kBackendIndexOffset = 0xFE960;
-constexpr uint8_t kOriginalBackend = 1;
-constexpr uint8_t kNewBackend = 3;
-constexpr const char* kPatchedGfxwinSha256 = "bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5";
+// Bytes at a file offset, as they are in v3.6 and as the patch leaves them.
+struct ByteChange
+{
+    size_t offset;
+    std::vector<uint8_t> original;
+    std::vector<uint8_t> patched;
+};
+
+// A game file the patch changes. The original is backed up in the patch folder before the first change.
+struct PatchedFile
+{
+    const KnownFile& file;
+    const char* patchedSha256;
+    const wchar_t* description;  // for the log
+    std::vector<ByteChange> changes;
+};
+
+// See docs/PATCHER.md for what each change does.
+const PatchedFile kPatchedFiles[] = {
+    // The default graphics backend, an index into gfxwin.dll's list of backend names (dcsf, dcsfx, dcd3d, dcogl):
+    // from 1 (dcsfx.dll, which fails on modern Windows) to 3 (dcogl.dll, the new component).
+    {kGameFiles[1], "bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5",
+     L"default graphics backend changed to dcogl.dll",
+     {{0xFE960, {0x01}, {0x03}}}},
+    // Advertising boards on Auto with no groundskeeper hired (docs/GAME-INTERNALS.md): where the daily processing
+    // reads the groundskeeper's quality through a null pointer, jump to new code in the padding after the function at
+    // 0x4AB5C0, which uses quality 0 when there's none, as the assistant handles the boards.
+    {kGameFiles[0], "750c45dae266abea0656cbf6f7f6b4a0f41f1e39c42d4caa6891c44b30e15551",
+     L"advertising boards on Auto without a groundskeeper fixed",
+     {{0xABA8C,
+       {0x33, 0xC9, 0x8A, 0x48, 0x01, 0x89, 0x4C, 0x24, 0x20},   // xor ecx,ecx; mov cl,[eax+1]; mov [esp+20h],ecx
+       {0xE9, 0xD0, 0xFB, 0xFF, 0xFF, 0x89, 0x44, 0x24, 0x20}},  // jmp 0x4AB661; mov [esp+20h],eax
+      {0xAB661,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x85, 0xC0,                     // test eax,eax
+        0x74, 0x04,                     // je 0x4AB669 (no groundskeeper: quality 0)
+        0x0F, 0xB6, 0x40, 0x01,         // movzx eax,byte ptr [eax+1]
+        0xE9, 0x23, 0x04, 0x00, 0x00}}}},  // jmp 0x4ABA91
+};
+
+const PatchedFile* FindPatchedFile(const wchar_t* name)
+{
+    for (const auto& patched : kPatchedFiles)
+    {
+        if (_wcsicmp(patched.file.name, name) == 0)
+            return &patched;
+    }
+    return nullptr;
+}
+
+// Makes the changes (or undoes them), after checking every location holds the bytes expected before.
+bool ChangeBytes(std::vector<uint8_t>& bytes, const PatchedFile& patched, bool apply)
+{
+    for (const auto& change : patched.changes)
+    {
+        const auto& from = apply ? change.original : change.patched;
+        if (change.offset + from.size() > bytes.size() || memcmp(&bytes[change.offset], from.data(), from.size()) != 0)
+            return false;
+    }
+    for (const auto& change : patched.changes)
+    {
+        const auto& to = apply ? change.patched : change.original;
+        memcpy(&bytes[change.offset], to.data(), to.size());
+    }
+    return true;
+}
 
 const wchar_t* const kPatchFiles[] = {L"dcogl.dll", L"dcogl.ini", L"dcogl.log", L"dcogl.old.log", nullptr};
 
@@ -96,9 +155,9 @@ std::string EmbeddedComponentSha256()
     return EmbeddedComponent(data, size) ? HexSha256(data, size) : std::string();
 }
 
-std::filesystem::path BackupPath(const std::filesystem::path& gameFolder)
+std::filesystem::path BackupPath(const std::filesystem::path& gameFolder, const wchar_t* name)
 {
-    return gameFolder / kPatchFolder / L"gfxwin.dll.original";
+    return gameFolder / kPatchFolder / (std::wstring(name) + L".original");
 }
 
 void OpenLog(const std::filesystem::path& gameFolder)
@@ -124,13 +183,14 @@ PatchStatus CheckGame(const std::filesystem::path& gameFolder)
         status.details = L"No se encuentra PC FÚTBOL 2001 en esta carpeta (falta manager.exe).";
         return status;
     }
-    bool gfxwinPatched = false;
+    size_t patchedFiles = 0;
     for (const auto& file : kGameFiles)
     {
         const std::string hash = FileSha256(gameFolder / file.name);
-        if (_wcsicmp(file.name, L"gfxwin.dll") == 0 && hash == kPatchedGfxwinSha256)
+        const PatchedFile* patched = FindPatchedFile(file.name);
+        if (patched && hash == patched->patchedSha256)
         {
-            gfxwinPatched = true;
+            ++patchedFiles;
             continue;
         }
         if (hash != file.sha256)
@@ -143,13 +203,14 @@ PatchStatus CheckGame(const std::filesystem::path& gameFolder)
             return status;
         }
     }
+    // Partly changed files mean another version of the patch: earlier versions changed fewer files.
     const std::string component = FileSha256(gameFolder / L"dcogl.dll");
-    if (!gfxwinPatched)
+    if (patchedFiles == 0)
     {
         status.state = PatchState::Unpatched;
         status.details = L"PC FÚTBOL 2001 v3.6, sin el parche.";
     }
-    else if (component == EmbeddedComponentSha256())
+    else if (patchedFiles == std::size(kPatchedFiles) && component == EmbeddedComponentSha256())
     {
         status.state = PatchState::Patched;
         status.details = Format(L"PC FÚTBOL 2001 v3.6, con el parche %hs aplicado.", PATCH_VERSION);
@@ -213,30 +274,37 @@ bool ApplyPatch(const std::filesystem::path& gameFolder, std::wstring& error)
     }
     SetupLog(L"dcogl.dll installed");
 
-    // 2. gfxwin.dll: back up the original, then change the default backend.
-    if (status.state == PatchState::Unpatched)
+    // 2. The changed game files: back up each original, then change it. Files already changed are left as they are
+    // (CheckGame accepted every file as either the original or the changed one).
+    for (const auto& patched : kPatchedFiles)
     {
-        std::vector<uint8_t> gfxwin;
-        if (!ReadBytes(gameFolder / L"gfxwin.dll", gfxwin) || gfxwin.size() <= kBackendIndexOffset ||
-            gfxwin[kBackendIndexOffset] != kOriginalBackend)
+        const auto path = gameFolder / patched.file.name;
+        std::vector<uint8_t> bytes;
+        if (!ReadBytes(path, bytes))
         {
-            error = L"gfxwin.dll no tiene el contenido esperado.";
+            error = Format(L"No se puede leer %s.", patched.file.name);
             return false;
         }
-        if (!WriteBytes(BackupPath(gameFolder), gfxwin.data(), gfxwin.size()))
+        if (HexSha256(bytes.data(), bytes.size()) == patched.patchedSha256)
+            continue;
+        if (!WriteBytes(BackupPath(gameFolder, patched.file.name), bytes.data(), bytes.size()))
         {
-            error = L"No se puede guardar la copia de seguridad de gfxwin.dll.";
-            SetupLog(L"ERROR: cannot back up gfxwin.dll");
+            error = Format(L"No se puede guardar la copia de seguridad de %s.", patched.file.name);
+            SetupLog(Format(L"ERROR: cannot back up %s", patched.file.name));
             return false;
         }
-        gfxwin[kBackendIndexOffset] = kNewBackend;
-        if (HexSha256(gfxwin.data(), gfxwin.size()) != kPatchedGfxwinSha256 || !WriteBytes(gameFolder / L"gfxwin.dll", gfxwin.data(), gfxwin.size()))
+        if (!ChangeBytes(bytes, patched, true))
         {
-            error = L"No se puede modificar gfxwin.dll.";
-            SetupLog(L"ERROR: cannot write gfxwin.dll");
+            error = Format(L"%s no tiene el contenido esperado.", patched.file.name);
             return false;
         }
-        SetupLog(L"gfxwin.dll: default graphics backend changed to dcogl.dll (original saved)");
+        if (HexSha256(bytes.data(), bytes.size()) != patched.patchedSha256 || !WriteBytes(path, bytes.data(), bytes.size()))
+        {
+            error = Format(L"No se puede modificar %s.", patched.file.name);
+            SetupLog(Format(L"ERROR: cannot write %s", patched.file.name));
+            return false;
+        }
+        SetupLog(Format(L"%s: %s (original saved)", patched.file.name, patched.description));
     }
 
     const PatchStatus after = CheckGame(gameFolder);
@@ -265,26 +333,31 @@ bool RemovePatch(const std::filesystem::path& gameFolder, std::wstring& error)
     OpenLog(gameFolder);
     SetupLog(L"removing the patch");
 
-    // The original gfxwin.dll, from the backup if it's intact; otherwise by undoing the one-byte change.
-    std::vector<uint8_t> gfxwin;
-    const auto backup = BackupPath(gameFolder);
-    if (!ReadBytes(backup, gfxwin) || HexSha256(gfxwin.data(), gfxwin.size()) != kGameFiles[1].sha256)
+    // Each changed file's original, from the backup if it's intact; otherwise by undoing the changes in place. Files
+    // still original (an earlier version of the patch didn't change them) are left alone.
+    for (const auto& patched : kPatchedFiles)
     {
-        SetupLog(L"backup of gfxwin.dll missing or damaged; undoing the change in place");
-        if (!ReadBytes(gameFolder / L"gfxwin.dll", gfxwin) || gfxwin.size() <= kBackendIndexOffset)
+        const auto path = gameFolder / patched.file.name;
+        if (FileSha256(path) == patched.file.sha256)
+            continue;
+        std::vector<uint8_t> bytes;
+        if (!ReadBytes(BackupPath(gameFolder, patched.file.name), bytes) || HexSha256(bytes.data(), bytes.size()) != patched.file.sha256)
         {
-            error = L"No se puede leer gfxwin.dll.";
+            SetupLog(Format(L"backup of %s missing or damaged; undoing the changes in place", patched.file.name));
+            if (!ReadBytes(path, bytes) || !ChangeBytes(bytes, patched, false))
+            {
+                error = Format(L"No se puede restaurar %s.", patched.file.name);
+                return false;
+            }
+        }
+        if (HexSha256(bytes.data(), bytes.size()) != patched.file.sha256 || !WriteBytes(path, bytes.data(), bytes.size()))
+        {
+            error = Format(L"No se puede restaurar %s.", patched.file.name);
+            SetupLog(Format(L"ERROR: cannot restore %s", patched.file.name));
             return false;
         }
-        gfxwin[kBackendIndexOffset] = kOriginalBackend;
+        SetupLog(Format(L"%s restored", patched.file.name));
     }
-    if (HexSha256(gfxwin.data(), gfxwin.size()) != kGameFiles[1].sha256 || !WriteBytes(gameFolder / L"gfxwin.dll", gfxwin.data(), gfxwin.size()))
-    {
-        error = L"No se puede restaurar gfxwin.dll.";
-        SetupLog(L"ERROR: cannot restore gfxwin.dll");
-        return false;
-    }
-    SetupLog(L"gfxwin.dll restored");
 
     OpenSetupLog({});  // the log is in the folder about to be removed
     std::error_code fsError;

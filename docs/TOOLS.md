@@ -17,6 +17,14 @@ diagnose=0
 ; reads of memory the game never initialized show up as strange values. Off when absent. Works with the quarantine on
 ; or off. With 55, a 32-bit number read from uninitialized memory is 1431655765, and a pointer is 0x55555555.
 fill_new=55
+
+[diagnostics]
+; Writes a full memory dump, dcogl-<date>-<time>.dmp next to dcogl.dll, for each of the first N faults in the game's
+; own code (manager.exe, gfxwin.dll and the other files in the game's folder). The game catches its faults and shows
+; "La aplicación no puede continuar" without Windows writing a dump, so this is the way to see what led to one. Each
+; dump is about as large as the game's memory, often 1 GB, and holds everything in it: for testing, not for players
+; to post. Off when absent or 0.
+dump_on_fault=1
 ```
 
 A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show up within minutes, which helps when testing changes to the layer.
@@ -27,6 +35,7 @@ A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show u
 | `memory: freed block of N bytes at … was written to afterwards; kept. Starts: … freed by: …` | A freed block the game kept writing to. Shows its first bytes, as hexadecimal and as text, and, in diagnostic mode, the code that freed it. |
 | `exception: C++ <type>, code …` | The game threw a C++ exception. Code `0x4e3b` is the game's normal way of quitting. |
 | `exception: access violation at <module>+<offset>, reading address …` | A fault. The game may handle it and continue, or show *"La aplicación no puede continuar"*. |
+| `diagnostics: dump written to dcogl-….dmp` | With `dump_on_fault`, the dump of the fault logged just before. The game is frozen while it's written, a few seconds. |
 | `window was made topmost; making it a normal window again` | Expected once per session; see [GAME-INTERNALS.md](GAME-INTERNALS.md#full-screen-window-always-on-top). |
 
 ## is6-cab
