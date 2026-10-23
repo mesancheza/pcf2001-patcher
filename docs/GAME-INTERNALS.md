@@ -174,7 +174,7 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 | Bug | Details |
 |---|---|
 | Crash with the advertising boards on Auto and no groundskeeper | Fixed by the patch. See below. |
-| Absurd TV offers in lower divisions | See below. |
+| Absurd TV offers in lower divisions | Fixed by the patch. See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
@@ -204,13 +204,37 @@ Found with `dump_on_fault` ([TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnosti
 
 **Symptom:** in *Finanzas → Ofertas TV*, third-division clubs get TV offers "por todos los derechos" (for all the rights) of millions of millions of pesetas, clearly not intended. Seen consistently with Italian Serie C1 clubs (Como, Fidelis Andria), for example 2.448.132, 28.060.451, 36.618.891 and 42.090.678 million. Players remember this from the original game in 2001. Second division unconfirmed.
 
-**Related, probably the same bug:** some offers show only their duration, with no amount, and accepting one gives a contract worth 0. These appear in the same lists as the absurd amounts. A likely explanation is an amount so large that it overflows when it's formatted or converted, but that hasn't been checked. The offers are random, so the exact list changes with every new game.
+Also seen with Atl. Catania (Serie C1): of three offers, two with only "+40 mill. por cada partido de la Copa de Italia" and one with 29.873.841 million for all the rights plus the same 40 per match.
 
-**Ruled out:** the memory layer's quarantine. With its diagnostic fill of new memory (`fill_new=55`, [TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnostic-mode)), the amounts didn't take values that would come from uninitialized memory.
+**Empty offers:** some offers show only their duration, with no amount. For the lowest divisions the money per match depends on a random number from 0 to 5, and on 4 or 5 there is none; with no "all rights" amount either, about one offer in three has no money at all, and accepting it gives a contract worth 0. That's how the code is written, not a fault, but the patch leaves these offers out (a decision about how the game plays, [DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)), so a lower-division team can get fewer than three offers, or none.
 
-**Leads for a fix:** the offer texts come from the game's `contratostv.cpp` (their table entries are tagged `tx_contratostv_cpp`). The "%s por todos los derechos." format string is selected by language into the global at VA `0xBCE7B8` in `manager.exe`, by code at VA `0x986550`. The code that calculates the amounts hasn't been found yet.
+**How many offers a lower-division team sees:** while the team has no TV contract, every cycle the offers are thrown away (or the one the player chose is accepted, `0x4AAE30`) and new ones are made. `0x4A0F10` also deletes a new offer that matches one already in the list in every amount and in duration (`0x493370`; the TV channel doesn't count). For Catania (level 9) there are only 10 different offers with money: +40 per match with or without +5 for each extra home match, times 5 durations. So a week shows 3 offers about 29% of the time, 2 about 40%, 1 about 27% and none about 4%. Several single-offer weeks in a row are uncommon but expected. The original game gave the same choice; it only listed the empty offers too. Re-rolling empty offers to always show three was considered and rejected: it would give lower divisions more choice than the original did.
 
-**Decision pending:** whether the patch fixes this. It changes the game's economy, which is a gameplay decision ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code), non-goals).
+**The offers:** the team state (the team record at `+0x11C` points to it) keeps the current TV contract at `+0x5FA0` and the list of offers at `+0x5FA8`, linked through `+0x20`. Each offer is `0x24` bytes; its amounts are in millions of pesetas:
+
+| Offset | Content |
+|---|---|
+| `+0x00` | For all the rights ("%s por todos los derechos.", global at VA `0xBCE7B8`; 0 means none) |
+| `+0x04` | A second amount, with its own text (global at VA `0xBCEF40`) |
+| `+0x08` | Per match of a competition |
+| `+0x20` | Next offer |
+
+| VA | What it does |
+|---|---|
+| `0x49CAE7` | Makes the team's new offers (6 for levels 0 to 3, 3 for the others), one by one, and adds each to the list with `0x4A0F10` |
+| `0x4A0F10` | Adds an offer to the list, or deletes it if the list already has an identical one |
+| `0x492710` | The offer's constructor: calculates the amounts, from the team's level (`team+0xEC`) and random numbers (`0x4C7AD0(n)`, 0 to n−1) |
+| `0x492CE0` | Writes the offer's text, each amount multiplied by 1,000,000 (the double at VA `0xA6D990`) |
+| `0x4AA4C8` and on | Reads the offers from a saved game |
+| `0x4AAE30` | Accepts an offer: it becomes the current contract, and the "all rights" amount goes to the club's income |
+
+**Cause:** the constructor sets the "all rights" amount for levels 0 to 6 (5,000, 3,625, 2,500, 1,625, 1,000, 625 and 500 million, then reduced at random). For level 7 or higher, the lowest divisions, it sets the other amounts (per match: 130 − 10 × level, so 40 for Catania, level 9) but **never the "all rights" amount**. Then, like for every level, it takes 10% off that amount a random number of times and scales it by a random percentage. The offer's memory comes straight from `new`, so the amount is whatever that memory held: 0 when it was clean, which shows no amount, as most lower-division offers do; an absurd figure when it held old data. The game already did this in 2001, on the Windows of its time. An offer saved with an absurd amount keeps it in the saved game.
+
+The memory layer's diagnostic fill of new memory (`fill_new`) was once thought to rule this out, because the amounts didn't look like the fill byte. They wouldn't: the code scales the value before showing it, and the 32-bit multiplication overflows.
+
+**Fix:** the constructor sets the "all rights" amount to 0 for level 7 or higher, so lower-division offers never have one, as every correct offer already shows. The original instructions at VA `0x4928FD` have no room for it, so they jump to new code in the padding after the function that ends at VA `0x491F50` (VA `0x491F51`, 15 bytes of `nop` in v3.6), which repeats them, sets the amount, and jumps back. Offers already in a saved game keep their amounts.
+
+**Empty offers left out:** where the generation adds each new offer (VA `0x49CB6E`), it calls new code instead: if the offer has neither an "all rights" amount nor money per match, it's deleted instead of added. The check (12 bytes) and the delete (15 bytes) don't fit in one padding run, so they use two a short jump apart: VA `0x49FA22` and `0x49FA61`. Bytes for both changes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
 ### Youth player offered a salary of 0
 
