@@ -312,6 +312,100 @@ The scroll bars call VA `0x8C93C0` (from the *Jóvenes promesas* handlers at `0x
 
 **Fix:** the binary search no longer stops at an equal row: the conditional jump after "different" becomes two `nop`s in each of the three loops (VA `0x8BE783`, `0x8BE8C4`, `0x8BE9EF`). The search then places a row after the rows equal to it in descending order (before them in ascending order, where equal rows never count as out of order), so a sorted list stays as it is and a row that does need to move still goes to the right place. "Different" is still called, and does nothing else. Every list of this class gets the fix. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
+### The youth search
+
+How *Jóvenes promesas* finds youth players, which the mod `juveniles-de-cualquier-pais` changes ([MODS.md](MODS.md#juveniles-de-cualquier-pais)).
+
+**The pool:** the database has four hidden teams of youth players: *Juveniles Españoles* (ID 9955, `0x26E3`), *Juveniles ingleses* (9956), *Juveniles ITALIANOS* (9957) and *Juveniles ARGENTINA* (9958), the last records of `EQ00022.FDI`. The code only ever names 9955; the other three are never used.
+
+**The search** is the class `CMODABusquedaJuveniles` (vtable `0xA6F620`): the team's ID at `+4`, the searcher's quality at `+6`, a flag at `+7`, the players found (IDs, 2 bytes each) at `+8`, and the positions searched at `+0x10` to `+0x15`.
+
+| VA | What it does |
+|---|---|
+| `0x48DC80` | Sets the quality at `+6`, from the team's employee for job 9 |
+| `0x48DCF0` | The search: takes every player of team 9955 (`0x4BDEF0`), keeps each one that passes `0x48D9E0` with a chance of 10 % × the quality, and if more were kept than it wants (1, or 2 at random with a quality over 4), picks that many at random |
+| `0x48D9E0` | Whether a player can be found |
+
+`0x48D9E0` rejects a player who is already in the team (`+0x54` or `+0xB4` is its ID) or is older than 18, then, **for a search made for a team** (VA `0x48DA24` to `0x48DAD3`):
+
+- if his country (byte `+0x61`) isn't the team's (byte `+0xA4` of the team record), at VA `0x48DA5B`;
+- if the team's competition (from the team record's `+0xD8`) rules him out by the byte at `+0x64`, through its virtual methods at `+0x8C` and `+0xC8`: most likely the competition's rule on foreign players.
+
+Last, the player must fit at least one of the positions searched: his rating for that position (one of the bytes `+0x106` to `+0x10B`) must be his highest.
+
+Each player the search keeps has his ratings at `+0xF5` to `+0xFE` raised in the database: a value *x* below 15 becomes (*x* + 1) × 2. A search made for no team (ID 0) skips the two team checks: the mod makes every search do so, with one jump at VA `0x48DA2B`.
+
+### Foreign players
+
+How the game limits foreign players, which the mods `extranjeros-sin-limite-en-plantilla` and `extranjeros-sin-limite-en-alineacion` change ([MODS.md](MODS.md#extranjeros-sin-limite-en-plantilla)).
+
+**The competition decides.** A club's competition (looked up from the team record's `+0xD8` through `0x5FA010`) is an object whose class sets the rules through virtual methods. Every competition class shares `0x5E8880` at `+0xCC`.
+
+| Method | What it returns |
+|---|---|
+| `+0x8C` | The most foreign players a squad may have: 65535 (no limit, `0x53FD80`), 6, 5, 4, 3, or 0 (none, in three competitions: the vtables at `0xA7A69C`, `0xA7CBE0` and `0xA7CEF8`) |
+| `+0x94` | The most foreign players a line-up may have: 3, 4 or 6 |
+| `+0x98` | The line-up error text (*"No se permite alinear a más de 3 jugadores extracomunitarios"*) |
+| `+0xC8` | Whether a nationality (one byte) is foreign in the competition |
+
+Many of these are one-instruction functions such as `mov eax,4; ret`, which the linker merged with every identical function: `0x53FD90` (`mov eax,3; ret`) fills 173 vtable slots, most of them unrelated.
+
+| VA | What it does |
+|---|---|
+| `0x4B1C90` | Whether a player is foreign in a competition: his nationality (`+0x61`) is, and so is his country of birth (`+0x13E`) if the game kept it ([Nationality and country of birth](#nationality-and-country-of-birth)). Called from 40 places |
+| `0x49A7E0` | How many of a club's players are foreign in its competition. Called only by the 14 squad limit checks |
+| `0x49A780` | How many of a club's players in the line-up are foreign |
+
+**The squad limit:** each of the 14 checks (offers and signings at `0x4FF25C` and `0x954A07`, youth promotion, the other clubs' transfers) refuses when the count reaches `+0x8C`, with *"No puedes tener extranjeros en tu plantilla"* when the maximum is 0 and *"No puedes tener más extranjeros en tu plantilla"* otherwise. `0x5064D1` refuses to offer a foreign player to some clubs (*"No puedes ofrecer jugadores extranjeros a este equipo"*).
+
+**The line-up limit:** `+0x94` is read in only six places: confirming the line-up (`0x969068`: more than the maximum shows `+0x98`'s text), swapping two players (`0x41F4F8`), and the automatic line-ups (`0x493470`, `0x493CBF`, `0x4944FC`, `0x495D49`), where `0x4940F0` lets a player in if he is fit and either not foreign or fewer foreign players than the maximum were picked.
+
+### Shirt numbers
+
+How the game decides whether a club's players have fixed shirt numbers, which the mod `dorsales-en-todas-las-competiciones` changes ([MODS.md](MODS.md#dorsales-en-todas-las-competiciones)).
+
+**The competition decides,** through its virtual method `+0x9C` (see [Foreign players](#foreign-players) for the competitions). Four competitions return true (`0x40CAA0`, `mov al,1; ret`; vtables `0xA77E48`, `0xA7A000`, `0xA7C670`, `0xA7C92C`); the other 100 point to `0x40A0C0`, a `return false` the linker merged with unrelated methods.
+
+**The number** a player shows is the byte `+0x134`. With fixed numbers it keeps the one chosen on the *Dorsales* screen (`0x432540`, dialog `0x3C2`). Without, the game rewrites it: `0x4BED50` copies each player's line-up slot (`+0x60`) into it, and `0x49B240` his position (`+0x62`). The database only has numbers for the clubs of the four competitions.
+
+The game asks `+0x9C` in nine places, all on a club's competition:
+
+| VA | With fixed numbers |
+|---|---|
+| `0x418EAE`, `0x419052` | The club menu has a *Dorsales* entry, while the date is not past the competition's `+0x100` date |
+| `0x493A2E`, `0x4940AC`, `0x49D42A` | After a line-up is set, the numbers stay (without: `0x4BED50`) |
+| `0x49B27F` | The club's processing in `0x49B240` keeps the numbers |
+| `0x49B8F7`, `0x49C4B4`, `0x4AC848` | Which messages the club gets (`0x489`, `0x47F`; without: `0x485`), not identified yet |
+
+### Flags in player lists
+
+How player lists decide whether to show a player's flag, which the mod `banderas-de-todos-los-jugadores` changes ([MODS.md](MODS.md#banderas-de-todos-los-jugadores)).
+
+`0x4C5D30` returns a nationality's flag from the flags object (the game context's `+0x58`); it reads through a null pointer for a nationality outside its table. Player lists call it only for a player who is foreign in the current competition (the game context's `+0x6C`): fourteen places test `0x4B1C90` ([Foreign players](#foreign-players)) and jump over the flag when he isn't, and one (`0x51AF17`) asks the competition's `+0xC8` about a nationality code from a list, not yet identified. The other thirteen calls of `0x4C5D30` draw clubs' or competitions' flags (the team record's `+0xA4` or `+0x112`) and don't depend on any test.
+
+| Foreign test | Jump over the flag |
+|---|---|
+| `0x402BEA`, `0x43686A`, `0x43E10B`, `0x524847`, `0x52694E`, `0x7DF108`, `0x8C9D0B`, `0x959592` | Short `je`, 7 bytes after the call |
+| `0x433313`, `0x435DCE`, `0x4361C5`, `0x452345`, `0x45278E` (*Jóvenes promesas*), `0x51F6E8` | Near `je`, 7 bytes after the call |
+| `0x51AF17` (competition `+0xC8`) | Near `je` at `0x51AF1F` |
+
+### Nationality and country of birth
+
+What the game keeps of a player's countries, which the mods `pais-de-nacimiento-para-todos` and `bandera-del-pais-de-nacimiento` change ([MODS.md](MODS.md#pais-de-nacimiento-para-todos)).
+
+| Player | Content |
+|---|---|
+| `+0x61` | Nationality, from the database. Naturalisation (`0x4AF4B6`) overwrites it with `+0x64` |
+| `+0x13E` | Country of birth, from the database, but only for players the database marks as nationalised; 0 for the others |
+| `+0x64` | The country he lives in: his club's (`+0x112` of the club), set when he moves (`0x4AF734`) |
+| `+0x65` | Years living there, which naturalisation needs; bit 7: nationality requested (`0x4EB780`) |
+
+**The database:** a player record (`JUG00022.FDI`) has, after the nationality and appearance, a "nationalised" flag, the date of birth, height and weight; then, in full records only, the country of birth (one byte) and texts such as the place of birth (field names from the community's Editor PCF 2001). The loader (`0x4AE2C0`) reads the flag into a local, stores the country of birth at `+0x13E`, and then writes 0 over it unless the flag is set (`jne` at `0x4AE4D1`); it skips the texts. Short records (`+4` of the record non-zero) have none of this, and get 0.
+
+**In the database supplied with the game** (35,346 players): 12,081 short records; 520 nationalised, 506 of them born outside their nationality's country; and 324 players born outside it but not marked nationalised, such as Davids and Seedorf (Netherlands, born in Suriname), whose country of birth the game drops.
+
+**What uses the country of birth:** the foreign test (`0x4B1C90`): a player is foreign only if his nationality and his country of birth both are. So a nationalised player counts as from both countries.
+
 ### Youth player offered a salary of 0
 
 **Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.
