@@ -22,6 +22,7 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | `juveniles-de-cualquier-pais` | *Jóvenes promesas de cualquier país* | The youth search finds youth players from any country, not only the club's, and ignores its competition's rule on foreign players |
 | `extranjeros-sin-limite-en-plantilla` | *Sin límite de extranjeros en la plantilla* | Any number of foreign players can be signed, also in the divisions that allow none, by every club |
 | `extranjeros-sin-limite-en-alineacion` | *Sin límite de extranjeros en las alineaciones* | Any number of foreign players can be in a line-up, for every club, automatic line-ups included |
+| `dorsales-en-todas-las-competiciones` | *Dorsales en todas las competiciones* | Shirt numbers can be chosen in every league and division, not only in the four competitions that had them |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -57,6 +58,19 @@ The six places that read the competition's line-up maximum get 65535 instead ([G
 | | `0x93CBF`, `0x95D49` | `FF 90 94 00 00 00` (`call dword ptr [eax+94h]`) | `B8 FF FF 00 00 90` |
 
 Both tested with a club with both limits: it signed foreign players past its limit, and confirmed a line-up with more foreign players than allowed.
+
+### `dorsales-en-todas-las-competiciones`
+
+Only four competitions use fixed shirt numbers ([GAME-INTERNALS.md](GAME-INTERNALS.md#shirt-numbers)). In the others, the club menu has no *Dorsales* entry, and every line-up renumbers the players by their place in it. The mod makes the nine places that ask a competition whether it uses fixed shirt numbers get "yes": each 6-byte call becomes `mov al,1` and four `nop`s.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x18EAE`, `0x19052`, `0x9B8F7` | `FF 90 9C 00 00 00` (`call dword ptr [eax+9Ch]`) | `B0 01 90 90 90 90` (`mov al,1`) |
+| | `0x93A2E`, `0x940AC`, `0x9D42A`, `0x9B27F`, `0x9C4B4`, `0xAC848` | `FF 92 9C 00 00 00` (`call dword ptr [edx+9Ch]`) | `B0 01 90 90 90 90` |
+
+**Known limitation:** the database has no shirt numbers for the clubs of the other competitions, so their players start with repeated numbers, mostly 1, until they're chosen on the *Dorsales* screen. The numbers are only shown: the game tells players apart by their records, so repeated numbers have no other effect. Giving those clubs unique numbers automatically was considered and left out: it needs new code, and could overwrite numbers chosen on purpose.
+
+Tested with a club of a competition without shirt numbers: the *Dorsales* entry appeared, numbers could be chosen, and line-ups kept them.
 
 ## How it works
 
