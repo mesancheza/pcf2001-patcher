@@ -49,6 +49,7 @@ bool g_initialized;
 bool g_enabled;            // the quarantine
 bool g_fill;               // [memory] fill_new: diagnostic fill of new memory
 uint8_t g_fillByte;
+bool g_resizeInPlace = true;  // [memory] resize_in_place = 0: growing always moves (diagnostic, with page heap)
 uint64_t g_limitBytes;
 
 // FIFO ring of quarantined blocks, plus an open-addressing index of their addresses for double-free detection.
@@ -315,7 +316,10 @@ LPVOID WINAPI CompatHeapReAlloc(HANDLE heap, DWORD flags, LPVOID block, SIZE_T b
     const DWORD lastError = GetLastError();
     // Resize in place when the heap can, as it always did: some of the game's code relies on blocks staying put.
     // (Without HEAP_GENERATE_EXCEPTIONS: not fitting in place is expected, not an error.)
-    if (LPVOID same = g_heapReAlloc(heap, (flags & ~HEAP_GENERATE_EXCEPTIONS) | HEAP_REALLOC_IN_PLACE_ONLY, block, bytes))
+    LPVOID same = nullptr;
+    if (g_resizeInPlace)
+        same = g_heapReAlloc(heap, (flags & ~HEAP_GENERATE_EXCEPTIONS) | HEAP_REALLOC_IN_PLACE_ONLY, block, bytes);
+    if (same)
     {
         FillNew(same, oldSize, bytes, flags);
         SetLastError(lastError);
@@ -411,6 +415,15 @@ bool Initialize()
         g_fill = true;
         g_fillByte = static_cast<uint8_t>(strtoul(fill, nullptr, 16));
         BackendLog("memory: diagnostic fill of new memory with 0x%02x\n", g_fillByte);
+    }
+
+    // [memory] resize_in_place = 0 never resizes a block in place: growing always moves it (shrinking still keeps
+    // it). Diagnostic, for Windows' page heap: its in-place resizes of "normal" blocks can disagree with its own
+    // bookkeeping and stop the game for overruns that aren't there, and they leave no guard page after the block.
+    if (!GetPrivateProfileIntA("memory", "resize_in_place", 1, ini))
+    {
+        g_resizeInPlace = false;
+        BackendLog("memory: blocks are never resized in place (diagnostic)\n");
     }
 
     // [memory] quarantine_mb = 0 turns the layer off (to compare with the original behavior).
