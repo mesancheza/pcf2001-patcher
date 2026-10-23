@@ -17,6 +17,18 @@ diagnose=0
 ; reads of memory the game never initialized show up as strange values. Off when absent. Works with the quarantine on
 ; or off. With 55, a 32-bit number read from uninitialized memory is 1431655765, and a pointer is 0x55555555.
 fill_new=55
+; 0 never resizes a block in place: growing always moves it to a new block (shrinking still keeps it). For use with
+; Windows' page heap (below): its in-place resizes can report overruns that aren't there, and the moved blocks get
+; a guard page, so a real overrun faults at the code that writes it. Default 1.
+resize_in_place=1
+
+[diagnostics]
+; Writes a full memory dump, dcogl-<date>-<time>.dmp next to dcogl.dll, for each of the first N faults in the game's
+; own code (manager.exe, gfxwin.dll and the other files in the game's folder). The game catches its faults and shows
+; "La aplicación no puede continuar" without Windows writing a dump, so this is the way to see what led to one. Each
+; dump is about as large as the game's memory, often 1 GB, and holds everything in it: for testing, not for players
+; to post. Off when absent or 0.
+dump_on_fault=1
 ```
 
 A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show up within minutes, which helps when testing changes to the layer.
@@ -27,7 +39,23 @@ A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show u
 | `memory: freed block of N bytes at … was written to afterwards; kept. Starts: … freed by: …` | A freed block the game kept writing to. Shows its first bytes, as hexadecimal and as text, and, in diagnostic mode, the code that freed it. |
 | `exception: C++ <type>, code …` | The game threw a C++ exception. Code `0x4e3b` is the game's normal way of quitting. |
 | `exception: access violation at <module>+<offset>, reading address …` | A fault. The game may handle it and continue, or show *"La aplicación no puede continuar"*. |
+| `diagnostics: dump written to dcogl-….dmp` | With `dump_on_fault`, the dump of the fault logged just before. The game is frozen while it's written, a few seconds. |
 | `window was made topmost; making it a normal window again` | Expected once per session; see [GAME-INTERNALS.md](GAME-INTERNALS.md#full-screen-window-always-on-top). |
+
+### Windows' page heap
+
+The strictest test for the game's memory bugs. With page heap on, every block the game allocates gets its own page, followed by an inaccessible one, and freed memory is made inaccessible, so the game faults at the very instruction that overruns a block or touches freed memory, instead of corrupting something that crashes later. It's a Windows setting for `manager.exe` (administrator rights), in both registry views because the game is 32-bit:
+
+```
+HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\manager.exe
+HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\manager.exe
+    GlobalFlag    = 0x02000000   (page heap)
+    PageHeapFlags = 0x3          (full page heap, with allocation stack traces)
+```
+
+Delete both values (or the keys) to turn it off. Use it with `quarantine_mb=1` (freed blocks reach Windows almost at once; 0 would turn off the layer's fix for shrunk buffers, and that known bug would stop the game first), `resize_in_place=0`, and `dump_on_fault`. The game is much slower, and with its 2 GB of address space it may run out of memory.
+
+When page heap finds a damaged block it stops the game with `0xC0000421` (`STATUS_VERIFIER_STOP`) without going through the patch's exception handler, so `dump_on_fault` doesn't see it. Windows' own crash dumps do, when set up for `manager.exe` (`HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\manager.exe`, `DumpType` 2); in the dump, `!analyze -v` names the stop and `!ext.heap -p -a <block>` shows the block's history.
 
 ## is6-cab
 
