@@ -10,8 +10,12 @@
 
 namespace
 {
-HWND g_window;
-WNDPROC g_previousProc;
+// Window property holding the procedure MappedWindowProc forwards to. It is set as long as MappedWindowProc is in that
+// window's chain, which outlives UninstallInputMapping when another DLL (the match's d2s2.dll) subclassed the window
+// after us: hooking such a window again would make the two procedures call each other forever.
+constexpr const char* kPreviousProcProperty = "pcf2001-patch.wndproc";
+
+HWND g_window;  // window whose input is mapped
 volatile LONG g_frameWidth;
 volatile LONG g_frameHeight;
 bool g_importsPatched;
@@ -153,6 +157,19 @@ BOOL WINAPI MappedGetClientRect(HWND window, LPRECT rect)
 
 LRESULT CALLBACK MappedWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    const auto previous = reinterpret_cast<WNDPROC>(GetPropA(window, kPreviousProcProperty));
+    if (message == WM_NCDESTROY)
+    {
+        RemovePropA(window, kPreviousProcProperty);
+        if (window == g_window)
+            g_window = nullptr;
+    }
+    if (!previous)
+        return DefWindowProcA(window, message, wParam, lParam);
+    // Still in the chain of a window whose input isn't mapped any more: only pass messages on.
+    if (window != g_window)
+        return CallWindowProcA(previous, window, message, wParam, lParam);
+
     if (message == WM_WINDOWPOSCHANGING && g_forceRect)
     {
         auto* position = reinterpret_cast<WINDOWPOS*>(lParam);
@@ -209,7 +226,7 @@ LRESULT CALLBACK MappedWindowProc(HWND window, UINT message, WPARAM wParam, LPAR
             break;
         }
     }
-    return CallWindowProcA(g_previousProc, window, message, wParam, lParam);
+    return CallWindowProcA(previous, window, message, wParam, lParam);
 }
 
 int PatchImports(HMODULE module, const char* function, void* replacement)
@@ -279,20 +296,28 @@ void InstallInputMapping(HWND window)
     if (g_window == window)
         return;
     UninstallInputMapping();
+    // Our procedure may still be in this window's chain, under another one: then it only has to start mapping again.
+    if (!GetPropA(window, kPreviousProcProperty))
+    {
+        const auto previous = GetWindowLongPtrA(window, GWLP_WNDPROC);
+        SetPropA(window, kPreviousProcProperty, reinterpret_cast<HANDLE>(previous));
+        SetWindowLongPtrA(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&MappedWindowProc));
+    }
     g_window = window;
-    g_previousProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&MappedWindowProc)));
 }
 
 void UninstallInputMapping()
 {
-    if (g_window && g_previousProc)
+    if (!g_window)
+        return;
+    // Only unhook if nobody subclassed the window after us; otherwise our procedure stays in the chain, passing
+    // messages on.
+    if (reinterpret_cast<WNDPROC>(GetWindowLongPtrA(g_window, GWLP_WNDPROC)) == &MappedWindowProc)
     {
-        // Only unhook if nobody subclassed the window after us; otherwise leave our procedure in the chain.
-        if (reinterpret_cast<WNDPROC>(GetWindowLongPtrA(g_window, GWLP_WNDPROC)) == &MappedWindowProc)
-            SetWindowLongPtrA(g_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_previousProc));
+        SetWindowLongPtrA(g_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(GetPropA(g_window, kPreviousProcProperty)));
+        RemovePropA(g_window, kPreviousProcProperty);
     }
     g_window = nullptr;
-    g_previousProc = nullptr;
 }
 
 void SetInputFrameSize(int width, int height)
