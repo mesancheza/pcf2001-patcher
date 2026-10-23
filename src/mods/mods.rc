@@ -1,0 +1,52 @@
+// The mods tool's window and version information. Spanish only.
+#pragma code_page(65001)
+
+#include <windows.h>
+#include <commctrl.h>
+#include "resource.h"
+
+LANGUAGE LANG_SPANISH, SUBLANG_SPANISH_MODERN
+
+IDD_MAIN DIALOGEX 0, 0, 330, 276
+STYLE DS_SETFONT | DS_SHELLFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
+CAPTION "Mods para PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "Carpeta del juego:", IDC_STATIC, 10, 10, 310, 10
+    EDITTEXT IDC_FOLDER, 10, 22, 236, 14, ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON "Cambiar...", IDC_BROWSE, 252, 21, 68, 15
+    GROUPBOX "Estado", IDC_STATIC, 10, 44, 310, 34
+    LTEXT "", IDC_STATE, 18, 56, 294, 18
+    // Text set in main.cpp: the resource compiler cuts control texts at 256 characters.
+    LTEXT "", IDC_DESCRIPTION, 10, 84, 310, 26
+    CONTROL "", IDC_LIST, WC_LISTVIEW, LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER |
+            WS_BORDER | WS_TABSTOP, 10, 112, 310, 70
+    LTEXT "", IDC_MOD_DESCRIPTION, 10, 186, 310, 28
+    PUSHBUTTON "Aplicar los cambios", IDC_APPLY, 10, 218, 100, 16
+    PUSHBUTTON "Cerrar", IDCANCEL, 250, 218, 70, 16
+    LTEXT "", IDC_RESULT, 10, 240, 310, 30
+END
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION MODS_VERSION_COMMAS
+PRODUCTVERSION MODS_VERSION_COMMAS
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "0C0A04B0"
+        BEGIN
+            VALUE "FileDescription", "Mods para PC FÚTBOL 2001 (no oficial)"
+            VALUE "FileVersion", MODS_VERSION_STRING
+            VALUE "ProductName", "pcf2001-patcher"
+            VALUE "ProductVersion", MODS_VERSION_STRING
+            VALUE "OriginalFilename", "pcf2001-mods.exe"
+            VALUE "LegalCopyright", "Licencia MIT. No afiliado a Dinamic Multimedia."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0C0A, 1200
+    END
+END

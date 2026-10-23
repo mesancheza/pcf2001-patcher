@@ -312,6 +312,29 @@ The scroll bars call VA `0x8C93C0` (from the *Jóvenes promesas* handlers at `0x
 
 **Fix:** the binary search no longer stops at an equal row: the conditional jump after "different" becomes two `nop`s in each of the three loops (VA `0x8BE783`, `0x8BE8C4`, `0x8BE9EF`). The search then places a row after the rows equal to it in descending order (before them in ascending order, where equal rows never count as out of order), so a sorted list stays as it is and a row that does need to move still goes to the right place. "Different" is still called, and does nothing else. Every list of this class gets the fix. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
+### The youth search
+
+How *Jóvenes promesas* finds youth players, which the mod `juveniles-de-cualquier-pais` changes ([MODS.md](MODS.md#juveniles-de-cualquier-pais)).
+
+**The pool:** the database has four hidden teams of youth players: *Juveniles Españoles* (ID 9955, `0x26E3`), *Juveniles ingleses* (9956), *Juveniles ITALIANOS* (9957) and *Juveniles ARGENTINA* (9958), the last records of `EQ00022.FDI`. The code only ever names 9955; the other three are never used.
+
+**The search** is the class `CMODABusquedaJuveniles` (vtable `0xA6F620`): the team's ID at `+4`, the searcher's quality at `+6`, a flag at `+7`, the players found (IDs, 2 bytes each) at `+8`, and the positions searched at `+0x10` to `+0x15`.
+
+| VA | What it does |
+|---|---|
+| `0x48DC80` | Sets the quality at `+6`, from the team's employee for job 9 |
+| `0x48DCF0` | The search: takes every player of team 9955 (`0x4BDEF0`), keeps each one that passes `0x48D9E0` with a chance of 10 % × the quality, and if more were kept than it wants (1, or 2 at random with a quality over 4), picks that many at random |
+| `0x48D9E0` | Whether a player can be found |
+
+`0x48D9E0` rejects a player who is already in the team (`+0x54` or `+0xB4` is its ID) or is older than 18, then, **for a search made for a team** (VA `0x48DA24` to `0x48DAD3`):
+
+- if his country (byte `+0x61`) isn't the team's (byte `+0xA4` of the team record), at VA `0x48DA5B`;
+- if the team's competition (from the team record's `+0xD8`) rules him out by the byte at `+0x64`, through its virtual methods at `+0x8C` and `+0xC8`: most likely the competition's rule on foreign players.
+
+Last, the player must fit at least one of the positions searched: his rating for that position (one of the bytes `+0x106` to `+0x10B`) must be his highest.
+
+Each player the search keeps has his ratings at `+0xF5` to `+0xFE` raised in the database: a value *x* below 15 becomes (*x* + 1) × 2. A search made for no team (ID 0) skips the two team checks: the mod makes every search do so, with one jump at VA `0x48DA2B`.
+
 ### Youth player offered a salary of 0
 
 **Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.

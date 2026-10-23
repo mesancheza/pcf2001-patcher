@@ -42,6 +42,8 @@ Después, dos pasos:
 1. **Instala el juego** con `pcf2001-setup.exe` ([docs/INSTALLER.md](docs/INSTALLER.md), en inglés). Lo instala desde tu CD y aplica las actualizaciones de Dinamic. Pide permisos de administrador una vez.
 2. **Aplica el parche** con `pcf2001-patch.exe` ([docs/PATCHER.md](docs/PATCHER.md), en inglés). Se puede quitar de la misma forma.
 
+Si quieres, `pcf2001-mods.exe` instala mods sobre el parche, cada uno por separado: cambios en cómo se juega, como juveniles de cualquier país en *Jóvenes promesas* ([docs/MODS.md](docs/MODS.md), en inglés). Sin ellos, el juego se juega como el original.
+
 Para jugar no hacen falta permisos de administrador, y nada necesita dgVoodoo, modos de compatibilidad ni ningún programa adicional.
 
 ## Qué incluye el parche y qué no
@@ -81,6 +83,7 @@ La documentación técnica está en inglés:
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | La interfaz de módulos gráficos del juego, que implementa el componente gráfico nuevo |
 | [docs/INSTALLER.md](docs/INSTALLER.md) | El instalador del juego: qué instala y cómo |
 | [docs/PATCHER.md](docs/PATCHER.md) | El parcheador: qué cambia, y cómo lo aplica y lo quita |
+| [docs/MODS.md](docs/MODS.md) | Los mods opcionales, y el programa que los instala |
 | [docs/BUILDING.md](docs/BUILDING.md) | Cómo compilar todo desde el código fuente |
 | [docs/RELEASING.md](docs/RELEASING.md) | Cómo se compilan y publican las versiones |
 | [docs/TOOLS.md](docs/TOOLS.md) | Herramientas de desarrollo del repositorio |
