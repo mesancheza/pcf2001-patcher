@@ -26,7 +26,7 @@ Closing a pull request without merging it does nothing.
 
 | File | Contents |
 |---|---|
-| `pcf2001-patch-<version>-win32.zip` | Everything `cmake --install` installs: `pcf2001-setup.exe` (the game installer), `pcf2001-patch.exe` (the patcher, with the new graphics component `dcogl.dll` inside), `README.md`, `LEEME.md` and `LICENSE`. Development tools are never installed. |
+| `pcf2001-patch-<version>-win32.zip` | Everything `cmake --install` installs: `pcf2001-setup.exe` (the game installer), `pcf2001-patch.exe` (the patcher, with the new graphics component `dcogl.dll` inside), `pcf2001-mods.exe` (the optional mods tool), `README.md`, `LEEME.md` and `LICENSE`. Development tools are never installed. |
 | `pcf2001-patcher-<version>-source.zip`, `pcf2001-patcher-<version>-source.tar.gz` | The source code of the merged commit, in a folder named after the version. |
 | `SHA256SUMS.txt` | SHA-256 hashes of the files above, and of every file inside the patch `.zip`. |
 

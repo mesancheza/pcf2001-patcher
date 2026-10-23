@@ -1,6 +1,7 @@
 #include "patch.h"
 
 #include "hashes.h"
+#include "mods.h"
 #include "setup_log.h"
 #include "text.h"
 
@@ -28,14 +29,6 @@ const KnownFile kGameFiles[] = {
     {L"dcd3d.dll", 65536, "0844ccb1df64b02c2efd702adebf044f1661eab4fa3b113824b28cfdb405a441"},
     {L"dcsfx.dll", 69632, "583aa62bda79ceda553e748de59cf0f79c6d29583cb37a413a2d497943126bc6"},
     {L"DCSF.dll", 86016, "ec581d48fda3221d2544d154434862613d7c860b64c0ed3eb3209fde1d9a1fff"},
-};
-
-// Bytes at a file offset, as they are in v3.6 and as the patch leaves them.
-struct ByteChange
-{
-    size_t offset;
-    std::vector<uint8_t> original;
-    std::vector<uint8_t> patched;
 };
 
 // A game file the patch changes. The original is backed up in the patch folder before the first change.
@@ -199,6 +192,7 @@ bool ChangeBytes(std::vector<uint8_t>& bytes, const PatchedFile& patched, bool a
 }
 
 const wchar_t* const kPatchFiles[] = {L"dcogl.dll", L"dcogl.ini", L"dcogl.log", L"dcogl.old.log", nullptr};
+}  // namespace
 
 bool ReadBytes(const std::filesystem::path& path, std::vector<uint8_t>& bytes)
 {
@@ -239,6 +233,16 @@ std::string FileSha256(const std::filesystem::path& path)
     return ReadBytes(path, bytes) ? HexSha256(bytes.data(), bytes.size()) : std::string();
 }
 
+namespace
+{
+// Whether a game file's contents are this version of the patch's, with or without mods (mods.h).
+bool IsPatchedFile(const PatchedFile& patched, std::vector<uint8_t> bytes)
+{
+    if (HexSha256(bytes.data(), bytes.size()) == patched.patchedSha256)
+        return true;
+    return RemoveInstalledMods(patched.file.name, bytes) && HexSha256(bytes.data(), bytes.size()) == patched.patchedSha256;
+}
+
 // The new graphics component, carried inside this program.
 bool EmbeddedComponent(const void*& data, size_t& size)
 {
@@ -275,6 +279,18 @@ const wchar_t* const* PatchFileNames()
     return kPatchFiles;
 }
 
+std::string PatchedSha256(const wchar_t* fileName)
+{
+    if (const PatchedFile* patched = FindPatchedFile(fileName))
+        return patched->patchedSha256;
+    for (const auto& file : kGameFiles)
+    {
+        if (_wcsicmp(file.name, fileName) == 0)
+            return file.sha256;
+    }
+    return {};
+}
+
 PatchStatus CheckGame(const std::filesystem::path& gameFolder)
 {
     PatchStatus status;
@@ -287,20 +303,22 @@ PatchStatus CheckGame(const std::filesystem::path& gameFolder)
     size_t patchedFiles = 0;
     for (const auto& file : kGameFiles)
     {
-        const std::string hash = FileSha256(gameFolder / file.name);
+        std::vector<uint8_t> bytes;
+        const bool found = ReadBytes(gameFolder / file.name, bytes);
         const PatchedFile* patched = FindPatchedFile(file.name);
-        if (patched && hash == patched->patchedSha256)
+        if (found && patched && IsPatchedFile(*patched, bytes))
         {
             ++patchedFiles;
             continue;
         }
-        if (hash != file.sha256)
+        if (!found || HexSha256(bytes.data(), bytes.size()) != file.sha256)
         {
             status.state = PatchState::UnknownFiles;
-            status.details = hash.empty() ? Format(L"Falta %s.", file.name)
-                                          : Format(L"%s no es el de la versión 3.6 original (es otra versión, o está modificado).", file.name);
+            status.details = !found ? Format(L"Falta %s.", file.name)
+                                    : Format(L"%s no es el de la versión 3.6 original (es otra versión, o está modificado).", file.name);
             status.details += L" El parche solo se aplica a PC FÚTBOL 2001 v3.6, instalado con pcf2001-setup.exe o con las "
-                              L"actualizaciones oficiales de Dinamic.";
+                              L"actualizaciones oficiales de Dinamic. Si has instalado mods con otra versión del parche, "
+                              L"quítalos antes con su pcf2001-mods.exe.";
             return status;
         }
     }
@@ -386,7 +404,7 @@ bool ApplyPatch(const std::filesystem::path& gameFolder, std::wstring& error)
             error = Format(L"No se puede leer %s.", patched.file.name);
             return false;
         }
-        if (HexSha256(bytes.data(), bytes.size()) == patched.patchedSha256)
+        if (IsPatchedFile(patched, bytes))
             continue;
         if (!WriteBytes(BackupPath(gameFolder, patched.file.name), bytes.data(), bytes.size()))
         {
@@ -445,7 +463,7 @@ bool RemovePatch(const std::filesystem::path& gameFolder, std::wstring& error)
         if (!ReadBytes(BackupPath(gameFolder, patched.file.name), bytes) || HexSha256(bytes.data(), bytes.size()) != patched.file.sha256)
         {
             SetupLog(Format(L"backup of %s missing or damaged; undoing the changes in place", patched.file.name));
-            if (!ReadBytes(path, bytes) || !ChangeBytes(bytes, patched, false))
+            if (!ReadBytes(path, bytes) || !RemoveInstalledMods(patched.file.name, bytes) || !ChangeBytes(bytes, patched, false))
             {
                 error = Format(L"No se puede restaurar %s.", patched.file.name);
                 return false;
