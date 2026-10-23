@@ -360,6 +360,23 @@ Many of these are one-instruction functions such as `mov eax,4; ret`, which the 
 
 **The line-up limit:** `+0x94` is read in only six places: confirming the line-up (`0x969068`: more than the maximum shows `+0x98`'s text), swapping two players (`0x41F4F8`), and the automatic line-ups (`0x493470`, `0x493CBF`, `0x4944FC`, `0x495D49`), where `0x4940F0` lets a player in if he is fit and either not foreign or fewer foreign players than the maximum were picked.
 
+### Shirt numbers
+
+How the game decides whether a club's players have fixed shirt numbers, which the mod `dorsales-en-todas-las-competiciones` changes ([MODS.md](MODS.md#dorsales-en-todas-las-competiciones)).
+
+**The competition decides,** through its virtual method `+0x9C` (see [Foreign players](#foreign-players) for the competitions). Four competitions return true (`0x40CAA0`, `mov al,1; ret`; vtables `0xA77E48`, `0xA7A000`, `0xA7C670`, `0xA7C92C`); the other 100 point to `0x40A0C0`, a `return false` the linker merged with unrelated methods.
+
+**The number** a player shows is the byte `+0x134`. With fixed numbers it keeps the one chosen on the *Dorsales* screen (`0x432540`, dialog `0x3C2`). Without, the game rewrites it: `0x4BED50` copies each player's line-up slot (`+0x60`) into it, and `0x49B240` his position (`+0x62`). The database only has numbers for the clubs of the four competitions.
+
+The game asks `+0x9C` in nine places, all on a club's competition:
+
+| VA | With fixed numbers |
+|---|---|
+| `0x418EAE`, `0x419052` | The club menu has a *Dorsales* entry, while the date is not past the competition's `+0x100` date |
+| `0x493A2E`, `0x4940AC`, `0x49D42A` | After a line-up is set, the numbers stay (without: `0x4BED50`) |
+| `0x49B27F` | The club's processing in `0x49B240` keeps the numbers |
+| `0x49B8F7`, `0x49C4B4`, `0x4AC848` | Which messages the club gets (`0x489`, `0x47F`; without: `0x485`), not identified yet |
+
 ### Youth player offered a salary of 0
 
 **Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.
