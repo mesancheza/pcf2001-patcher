@@ -25,3 +25,5 @@ void DeleteShortcuts();
 bool RegisterUninstaller(const std::filesystem::path& gameFolder, const std::filesystem::path& uninstaller,
                          unsigned long long sizeBytes);
 void UnregisterUninstaller();
+// The game folder registered there (InstallLocation), or an empty path when the game isn't installed.
+std::filesystem::path ReadInstallLocation();

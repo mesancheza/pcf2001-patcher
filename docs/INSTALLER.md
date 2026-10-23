@@ -25,7 +25,7 @@ pcf2001-setup.exe /desatendido /cd=<unidad o carpeta> /destino=<carpeta> /actual
 pcf2001-setup.exe /desinstalar [<carpeta del juego>] [/silencioso]
 ```
 
-`/desatendido` installs without asking anything and returns exit code 0 on success. `/silencioso` uninstalls without asking or showing messages.
+`/desatendido` installs without asking anything and returns exit code 0 on success. `/desinstalar` without a folder uninstalls the game from the folder registered in Windows, so it works from any copy of `pcf2001-setup.exe`, not only from the one in the game folder. `/silencioso` uninstalls without asking or showing messages.
 
 ## What it does
 
