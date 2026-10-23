@@ -37,12 +37,14 @@ std::filesystem::path DesktopShortcut()
 }
 
 bool CreateLink(const std::filesystem::path& link, const std::filesystem::path& target, const std::filesystem::path& workingFolder,
-                const std::wstring& description, const std::filesystem::path& icon)
+                const std::wstring& description, const std::filesystem::path& icon, const wchar_t* arguments = nullptr)
 {
     IShellLinkW* shellLink = nullptr;
     if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shellLink))))
         return false;
     shellLink->SetPath(target.c_str());
+    if (arguments)
+        shellLink->SetArguments(arguments);
     shellLink->SetWorkingDirectory(workingFolder.c_str());
     shellLink->SetDescription(description.c_str());
     if (!icon.empty())
@@ -139,7 +141,7 @@ bool CreateShortcuts(const std::filesystem::path& gameFolder, const std::filesys
     const auto launcher = gameFolder / L"pcf2001.exe";
     const auto icon = gameFolder / L"PCF2001.ico";
     bool ok = CreateLink(menu / (std::wstring(kGameName) + L".lnk"), launcher, gameFolder, kGameName, icon);
-    ok = CreateLink(menu / L"Desinstalar.lnk", uninstaller, gameFolder, L"Desinstalar PC FÚTBOL 2001", {}) && ok;
+    ok = CreateLink(menu / L"Desinstalar.lnk", uninstaller, gameFolder, L"Desinstalar PC FÚTBOL 2001", {}, L"/desinstalar") && ok;
     if (desktop)
         ok = CreateLink(DesktopShortcut(), launcher, gameFolder, kGameName, icon) && ok;
     SetupLog(ok ? L"shortcuts created" : L"some shortcuts could not be created");
@@ -177,4 +179,14 @@ void UnregisterUninstaller()
 {
     RegDeleteKeyExW(HKEY_LOCAL_MACHINE, kUninstallKey, KEY_WOW64_64KEY, 0);
     RegDeleteKeyExW(HKEY_LOCAL_MACHINE, kUninstallKey, kView32, 0);
+}
+
+std::filesystem::path ReadInstallLocation()
+{
+    wchar_t value[MAX_PATH];
+    DWORD size = sizeof value;
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, kUninstallKey, L"InstallLocation", RRF_RT_REG_SZ | RRF_SUBKEY_WOW6432KEY, nullptr, value,
+                     &size) != ERROR_SUCCESS)
+        return {};
+    return value;
 }
