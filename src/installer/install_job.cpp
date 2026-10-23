@@ -237,14 +237,15 @@ bool RunInstall(const InstallOptions& options, const InstallProgress& progress, 
 
 bool RunUninstall(const std::filesystem::path& gameFolder, std::wstring& error)
 {
-    OpenSetupLog(gameFolder / kSetupLogName);
-    SetupLog(L"uninstalling");
     std::ifstream list(gameFolder / kInstalledFilesList, std::ios::binary);
     if (!list)
     {
+        // Not a game folder: leave no log in it.
         error = L"Esta carpeta no tiene una instalación hecha con este programa: " + gameFolder.native();
         return false;
     }
+    OpenSetupLog(gameFolder / kSetupLogName);
+    SetupLog(L"uninstalling");
 
     // The installed files, and the settings the game writes, but never anything under Save.
     std::vector<std::filesystem::path> remove;

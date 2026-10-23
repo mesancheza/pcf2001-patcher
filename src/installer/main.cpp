@@ -7,6 +7,7 @@
 //                                           uninstalls (the copy in the game folder is registered for this)
 #include "install_job.h"
 #include "setup_log.h"
+#include "system_integration.h"
 #include "text.h"
 #include "wizard.h"
 
@@ -96,7 +97,26 @@ int Uninstall(const Arguments& arguments)
 {
     const bool silent = arguments.Has(L"/silencioso");
     const std::filesystem::path self = ExecutablePath();
-    const std::filesystem::path folder = arguments.words.empty() ? self.parent_path() : std::filesystem::path(arguments.words[0]);
+    // The folder given; else this program's folder, when it is the copy in the game folder; else the installed game's
+    // folder (when run from anywhere else, such as the downloaded installer).
+    std::filesystem::path folder;
+    std::error_code fsError;
+    if (!arguments.words.empty())
+        folder = std::filesystem::absolute(arguments.words[0], fsError);
+    else if (std::filesystem::exists(self.parent_path() / kInstalledFilesList, fsError))
+        folder = self.parent_path();
+    else
+        folder = ReadInstallLocation();
+    if (folder.empty())
+    {
+        if (!silent)
+            MessageBoxW(nullptr, L"PC FÚTBOL 2001 no está instalado.", kTitle, MB_ICONERROR | MB_OK);
+        return 1;
+    }
+    // "C:\Juegos\PC Futbol 2001\" -> "C:\Juegos\PC Futbol 2001": a trailing backslash would escape the closing quote
+    // in the command line below.
+    if (folder.has_relative_path() && !folder.has_filename())
+        folder = folder.parent_path();
 
     // The copy in the game folder can't delete itself: run a copy from the temporary folder, which waits for this
     // process to end.
