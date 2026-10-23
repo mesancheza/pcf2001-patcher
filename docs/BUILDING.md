@@ -30,6 +30,7 @@ build.bat
 
 - `build.bat` or `build.bat Release`: optimized build in `build\Release\`.
 - `build.bat Debug`: debug build in `build\Debug\`.
+- `build.bat Release <version>`, for example `build.bat Release 0.1.0`: the built files report that version (for example in `dcogl.log`). Releases are built this way ([RELEASING.md](RELEASING.md)); without it, the version in `CMakeLists.txt` is used.
 
 Everything is built as 32-bit, because it all runs inside the game's 32-bit process. The build stops with an error if it detects a 64-bit compiler.
 
@@ -37,9 +38,10 @@ Everything is built as 32-bit, because it all runs inside the game's 32-bit proc
 
 | File | What it is |
 |---|---|
-| `build\<config>\tools\backend-trace\dcogl.dll` | Development tool: logs how the game uses its graphics interface. See [TOOLS.md](TOOLS.md). |
+| `build\<config>\src\backend\dcogl.dll` | The new graphics component (Direct3D 11) and the memory compatibility layer. Part of the patch. |
+| `build\<config>\tools\backend-trace\dcogl.dll` | Development tool: logs how the game uses its graphics interface. See [TOOLS.md](TOOLS.md). Not part of the patch. |
 
-The new graphics backend and the patcher will be added here as they are written.
+`cmake --install build\Release --prefix <folder>` copies exactly the files a release ships into `<folder>`. The patcher will be added here when it's written.
 
 ## Toolchain used for development
 
@@ -58,7 +60,7 @@ Builds are **reproducible**: the compiler and linker run with `/Brepro`, which r
 
 To check a release:
 
-1. Check out the release's tag: `git checkout <tag>`.
+1. Check out the release's tag: `git checkout v<version>`.
 2. Install the toolchain versions listed in that release's notes. Other compiler versions produce different, but equally valid, binaries.
-3. Run `build.bat`.
-4. Compare the SHA-256 of your files with the hashes published in the release, for example with `certutil -hashfile <file> SHA256`.
+3. Run `build.bat Release <version>`, with the release's version: the version is part of the built files.
+4. Compare the SHA-256 of your files with the hashes in the release's `SHA256SUMS.txt`, for example with `certutil -hashfile build\Release\src\backend\dcogl.dll SHA256`. Compare the files inside the patch `.zip`, not the `.zip` itself: zip files also store file dates.

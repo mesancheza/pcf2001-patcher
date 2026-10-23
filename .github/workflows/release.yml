@@ -1,0 +1,137 @@
+# Builds a release when a pull request is merged into a release branch, named release/<version> (e.g. release/0.1.0).
+# Creates a DRAFT GitHub release v<version> with:
+#   - the source code, as .zip and as .tar.gz;
+#   - the patch's files for players (whatever `cmake --install` installs), as a .zip;
+#   - SHA-256 hashes of all of the above and of every file inside the patch .zip.
+# Someone reviews the draft and publishes it by hand. See docs/RELEASING.md.
+
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ['release/**']
+
+permissions:
+  contents: write  # create the release and upload its files
+
+concurrency:
+  group: release-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Closing a pull request without merging it releases nothing.
+    if: github.event.pull_request.merged == true
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      BRANCH: ${{ github.event.pull_request.base.ref }}
+      COMMIT: ${{ github.event.pull_request.merge_commit_sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Read the version from the branch name
+        id: version
+        run: |
+          if ($env:BRANCH -notmatch '^release/(\d+\.\d+\.\d+)$') {
+              throw "Release branches must be named release/<major>.<minor>.<patch>, e.g. release/0.1.0; this one is '$env:BRANCH'."
+          }
+          "version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Check out the merged code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Build
+        shell: cmd
+        run: build.bat Release ${{ steps.version.outputs.version }}
+
+      - name: Package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = "pcf2001-patcher-$env:VERSION"
+          $patch = "pcf2001-patch-$env:VERSION-win32"
+          New-Item -ItemType Directory dist, staging | Out-Null
+
+          # Source code exactly as committed, in a folder named after the version.
+          git archive --format=zip --prefix="$source/" -o "dist/$source-source.zip" $env:COMMIT
+          if ($LASTEXITCODE) { throw 'git archive (zip) failed' }
+          git archive --format=tar.gz --prefix="$source/" -o "dist/$source-source.tar.gz" $env:COMMIT
+          if ($LASTEXITCODE) { throw 'git archive (tar.gz) failed' }
+
+          # The files players get.
+          cmake --install build/Release --prefix "staging/$patch"
+          if ($LASTEXITCODE) { throw 'cmake --install failed' }
+          # Entries named explicitly with forward slashes, the standard for zip files, whatever the .NET version.
+          Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+          $stagingRoot = (Resolve-Path staging).Path
+          $zip = [IO.Compression.ZipFile]::Open("$PWD/dist/$patch.zip", 'Create')
+          Get-ChildItem "staging/$patch" -Recurse -File | Sort-Object FullName | ForEach-Object {
+              $entry = $_.FullName.Substring($stagingRoot.Length + 1).Replace('\', '/')
+              [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entry, 'Optimal')
+          }
+          $zip.Dispose()
+
+          # Hashes: the release files, and each file inside the patch, so builds can be compared file by file.
+          $hashes = @()
+          $hashes += Get-ChildItem dist | Sort-Object Name | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" }
+          $hashes += Get-ChildItem "staging/$patch" -Recurse -File | Sort-Object FullName | ForEach-Object {
+              "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $patch.zip/$($_.FullName.Substring((Resolve-Path staging).Path.Length + 1).Replace('\', '/'))"
+          }
+          $hashes | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+
+          # Toolchain, read from the build, so others can rebuild this release byte for byte (docs/BUILDING.md).
+          $compilerInfo = Get-ChildItem build/Release/CMakeFiles -Recurse -Filter CMakeCXXCompiler.cmake | Select-Object -First 1
+          $msvc = (Select-String -Path $compilerInfo.FullName -Pattern 'set\(CMAKE_CXX_COMPILER_VERSION "([^"]+)"').Matches[0].Groups[1].Value
+          $fxc = (Select-String -Path build/Release/CMakeCache.txt -Pattern '^FXC:FILEPATH=(.+)$').Matches[0].Groups[1].Value
+          $sdk = if ($fxc -match '\\bin\\(\d+\.\d+\.\d+\.\d+)\\' -or $fxc -match '/bin/(\d+\.\d+\.\d+\.\d+)/') { $Matches[1] } else { 'unknown' }
+          $cmake = ((cmake --version) | Select-Object -First 1) -replace 'cmake version ', ''
+
+          @"
+          Built from pull request #$env:PR_NUMBER ($env:PR_TITLE), commit $env:COMMIT.
+
+          **Files**
+
+          - ``$patch.zip``: the patch.
+          - ``$source-source.zip`` and ``$source-source.tar.gz``: the source code of this release.
+          - ``SHA256SUMS.txt``: SHA-256 hashes of the files above and of every file inside the patch.
+
+          No Dinamic files are included. The patch only works on top of your own copy of PC FÚTBOL 2001 v3.6.
+
+          **Rebuilding this release yourself**
+
+          Toolchain: MSVC $msvc, Windows SDK $sdk, CMake $cmake (GitHub runner windows-2022).
+
+          ``````
+          git checkout v$env:VERSION
+          build.bat Release $env:VERSION
+          ``````
+
+          See [docs/BUILDING.md](https://github.com/$env:GITHUB_REPOSITORY/blob/v$env:VERSION/docs/BUILDING.md) for how to compare your files with these.
+          "@ | Set-Content -Encoding utf8 notes.md
+          Get-Content notes.md
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Create or update the draft release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $tag = "v$env:VERSION"
+          $existing = gh release view $tag --json isDraft 2>$null | ConvertFrom-Json
+          if ($existing) {
+              # Another pull request merged into the same release branch: refresh the draft, never a published release.
+              if (-not $existing.isDraft) { throw "Release $tag is already published. Use a new release branch and version." }
+              gh release upload $tag (Get-ChildItem dist).FullName --clobber
+              gh release edit $tag --target $env:COMMIT --notes-file notes.md
+          } else {
+              gh release create $tag (Get-ChildItem dist).FullName --draft --target $env:COMMIT `
+                  --title "PC FÚTBOL 2001 patch $env:VERSION" --notes-file notes.md
+          }
+          if ($LASTEXITCODE) { throw 'gh release failed' }

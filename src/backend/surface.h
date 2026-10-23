@@ -30,6 +30,8 @@ public:
     int Stride() const { return m_stride; }
     uint8_t* Row(int y) const { return static_cast<uint8_t*>(m_bits) + y * m_stride; }
 
+    void SetColorKey(uint32_t colorKey) { m_desc.colorKey = colorKey; }
+
     bool Lock();
     void Unlock();
     bool IsLocked() const { return m_desc.pixels != nullptr; }
@@ -54,6 +56,7 @@ private:
     void Free();
 
     SurfaceDesc m_desc{};
+    HANDLE m_section = nullptr;  // memory holding the pixels, with slack around them (see Allocate)
     HBITMAP m_bitmap = nullptr;
     HGDIOBJ m_previousBitmap = nullptr;
     void* m_bits = nullptr;

@@ -2,6 +2,7 @@
 
 #include "backend_log.h"
 #include "input_mapping.h"
+#include "memory_compat.h"
 #include "surface.h"
 
 #include <cstring>
@@ -116,6 +117,8 @@ void Device::UpdateWindow(HWND window)
 void Device::ReleaseDisplay()
 {
     // Called when the 3D backend takes over the window for a match, and on shutdown: let go of the window entirely.
+    if (m_displayReady)
+        BackendLog("ReleaseDisplay\n");
     m_presenter.Destroy();
     SetInputFrameSize(0, 0);
     UninstallInputMapping();
@@ -197,6 +200,7 @@ bool Device::ConfigureDisplay(const ModeEntry& mode)
     if (!m_window || mode.width == 0 || mode.height == 0)
         return false;
     m_currentMode = mode;
+    InstallMemoryCompat();  // covers the game's 3D backend, which is loaded after this DLL
 
     const SurfaceDesc desc = DescForMode(mode);
     if (!m_backBuffer)
@@ -241,7 +245,9 @@ void Device::EnterBorderlessFullScreen()
     SetWindowLongPtrA(m_window, GWL_STYLE, (m_savedStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_BORDER | WS_DLGFRAME)) | WS_POPUP | WS_VISIBLE);
     SetWindowLongPtrA(m_window, GWL_EXSTYLE, m_savedExStyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME));
     SetForcedWindowRect(&r);  // the game would otherwise move the window back to its mode size
-    SetWindowPos(m_window, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    // Not "always on top" (gfxwin asks for it in full screen), or the game would cover every other window even
+    // after the player switches away from it.
+    SetWindowPos(m_window, HWND_NOTOPMOST, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 }
 
 void Device::LeaveBorderlessFullScreen()
@@ -267,8 +273,18 @@ bool Device::ShowFrame()
     if (now - m_lastPresentReport >= 30000)
     {
         BackendLog("%u frames presented in the last %.0f s\n", m_presentsSinceReport, (now - m_lastPresentReport) / 1000.0);
+        LogMemoryCompatStats();
         m_presentsSinceReport = 0;
         m_lastPresentReport = now;
+    }
+
+    // Safety net for the window procedure's check (input_mapping.cpp): whatever made the window topmost, undo it.
+    if (m_borderless && (GetWindowLongPtrA(m_window, GWL_EXSTYLE) & WS_EX_TOPMOST))
+    {
+        if (!m_loggedTopmost)
+            BackendLog("window was made topmost; making it a normal window again\n");
+        m_loggedTopmost = true;
+        SetWindowPos(m_window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     // Never wait for the vertical blank: the game redraws progress screens while it computes (e.g. after each simulated
@@ -424,6 +440,14 @@ Surface* Device::CreateTexture(const SurfaceDesc* desc, uint32_t reserved1, uint
 bool Device::SetTexture(Surface* texture)
 {
     m_texture = texture;
+    return true;
+}
+
+bool Device::SetSurfaceColorKey(Surface* surface, uint32_t colorKey)
+{
+    if (!surface)
+        return false;
+    surface->SetColorKey(colorKey);
     return true;
 }
 

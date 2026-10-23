@@ -88,6 +88,13 @@ The game keeps rendering at its own resolution. The new backend scales each fini
 
 **Why:** changing the display mode is slow, disruptive with multiple monitors, and unnecessary on modern hardware. It also removes the windowed-mode drawing bug, which comes from the old drawing path working in screen coordinates.
 
+How full screen works:
+
+- Full screen is a **borderless window covering the monitor**, not an exclusive mode. Mouse coordinates are mapped between the screen and the game's 800×600 frame.
+- The window is **never "always on top"**, even though `gfxwin.dll` asks for it in full screen. With an exclusive mode Windows took the screen back on Alt+Tab; with a normal window, "always on top" would keep the game covering everything after switching away.
+- Frames are presented **without waiting for the vertical blank**. The game redraws its progress screens while it computes (for example, between simulated matches), and waiting there would slow those loops to the monitor's refresh rate.
+- The game can spend a long time computing without handling window messages. The backend turns off Windows' "not responding" ghost window, which would otherwise offer to close the game in the middle of a match day.
+
 ### D8. Fix bugs at their cause, in the game's code
 
 Bugs that only appear on modern Windows, such as the garbled names, get fixed where they originate, not hidden by compatibility settings (D4). Each fix is documented: the file, the location, the original bytes, the new bytes, and why.
@@ -113,8 +120,41 @@ It needs no administrator rights unless the game is installed in a protected fol
 
 ### D11. No network, no telemetry
 
-Neither the patcher nor anything it installs makes network connections or collects data.
+Neither the patcher nor anything it installs makes network connections or collects data. The log (D14) stays on the player's computer unless they choose to send it.
 
 ### D12. Scope of testing
 
 The patch is first tested by its developers on their own machines, then by members of the PC Fútbol community on varied hardware before any public release. The 3D match modes (Visionado and Interactivo) should work with the new backend, but the manager and the 2D Resumen mode come first.
+
+### D13. A memory compatibility layer, while the game's memory bugs are found and fixed
+
+The game uses memory after freeing it, in many places (see [GAME-INTERNALS.md](GAME-INTERNALS.md#memory-bugs)). This causes the garbled and misassigned names and the random "La aplicación no puede continuar" crashes. The new backend includes a layer that makes the game's frees safe:
+
+- Freed blocks go into a **quarantine** instead of back to Windows, so stale reads still find the old data. The quarantine is first in, first out and limited in size (192 MB by default). The oldest blocks are released first.
+- Before a block leaves the quarantine, the layer checks whether it changed since it was freed. **Blocks the game still writes to are never released**, because those writes would corrupt whatever reuses the memory, or the heap itself.
+- Freeing a block twice is ignored.
+- **Shrinking a block never moves it**, as on Windows XP. The game keeps pointers into the middle of buffers it shrinks; this alone fixes the garbled team names ([GAME-INTERNALS.md](GAME-INTERNALS.md#found-pointers-into-buffers-that-get-shrunk)).
+- Growing a block keeps it in place when possible, as Windows does. When it has to move, the old block goes into the quarantine like a free.
+- It works by redirecting `HeapFree` and `HeapReAlloc` in the import tables of the game's modules and of the C runtime they use.
+
+**Why a layer first:** the game has many of these bugs, and each needs to be found in the code and patched at its cause (D8). The layer makes the game playable right away, and the bugs found with its diagnostics (D14) get fixed in the code one by one. Each code fix reduces how much the layer has to do.
+
+**Why not the Windows XP compatibility mode:** it isn't standalone (D4) and it makes the game ask for administrator rights.
+
+**Limits:** the game is a 32-bit program without large-address support, so it has 2 GB of address space, and the quarantine uses part of it. A stale pointer that outlives the quarantine still reads reused memory, so the layer postpones these bugs rather than removing them.
+
+**Alternatives considered:**
+
+| Alternative | Why not |
+|---|---|
+| Never free anything | The game frees hundreds of megabytes per hour of play; it would run out of address space. |
+| Reproduce the old Windows heap's allocation order | Fragile, and it would hide the bugs without making them safe. |
+| Only fix the bugs in the code | The right end state, but it needs every bug found first. |
+
+### D14. A log players can send
+
+The new backend writes `dcogl.log` next to the game, and keeps the previous session's log as `dcogl.old.log`. Players who report a problem attach both. The log starts with what the player is running: patch version, Windows version, screen and graphics card, the game version, and the size and checksum of the game's files and of the database files. After that it records setup, faults (with the module and offset), the game's own error exceptions, and memory statistics every 30 seconds.
+
+- **Small:** a few kilobytes per hour of play, capped at 4 MB per session.
+- **Private:** nothing that identifies the player. In particular no full paths, which usually contain the Windows user name. It is never sent anywhere automatically (D11).
+- **Diagnostic mode:** `diagnose=1` in the `[memory]` section of `dcogl.ini` also records which code freed each block the game keeps writing to. It's off by default because it costs memory and speed.
