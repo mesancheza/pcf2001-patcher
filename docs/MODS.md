@@ -20,6 +20,8 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | Id | Name | What it does |
 |---|---|---|
 | `juveniles-de-cualquier-pais` | *Jóvenes promesas de cualquier país* | The youth search finds youth players from any country, not only the club's, and ignores its competition's rule on foreign players |
+| `extranjeros-sin-limite-en-plantilla` | *Sin límite de extranjeros en la plantilla* | Any number of foreign players can be signed, also in the divisions that allow none, by every club |
+| `extranjeros-sin-limite-en-alineacion` | *Sin límite de extranjeros en las alineaciones* | Any number of foreign players can be in a line-up, for every club, automatic line-ups included |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -30,6 +32,31 @@ The youth search draws from one hidden team, *Juveniles Españoles*, and keeps o
 | `manager.exe` | `0x8DA2B` | `0F 84 A6 00 00 00` (`je 0x48DAD7`) | `E9 A7 00 00 00 90` (`jmp 0x48DAD7`) |
 
 Tested with Boca Juniors (Argentina): the search found Spanish youth players, which the original game never offers an Argentinian club.
+
+### `extranjeros-sin-limite-en-plantilla`
+
+Every check of the squad's foreign players compares the club's count with its competition's maximum ([GAME-INTERNALS.md](GAME-INTERNALS.md#foreign-players)). The mod makes the count always 0, and in the three competitions whose maximum is 0 it points the maximum at the one the competitions without a limit use. It also removes *"No puedes ofrecer jugadores extranjeros a este equipo"*. It applies to every club: the computer's clubs' transfers go through the same checks.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x9A7E0` | `51 64 8B` (start of the count, `0x49A7E0`) | `33 C0 C3` (`xor eax,eax; ret`) |
+| | `0x67A728` | `30 CE 40 00` (`0x40CE30`, maximum 0) | `80 FD 53 00` (`0x53FD80`, maximum 65535) |
+| | `0x67CC6C` | `30 CE 40 00` | `80 FD 53 00` |
+| | `0x67CF84` | `30 CE 40 00` | `80 FD 53 00` |
+| | `0x1064D8` | `74 20` (`je 0x5064FA`) | `EB 20` (`jmp 0x5064FA`) |
+
+The three offsets in `.rdata` are the maximum's entry (`+0x8C`) in the vtables at VA `0xA7A69C`, `0xA7CBE0` and `0xA7CEF8`. The functions themselves can't be changed: the linker merged identical functions, so the code that returns 0 also serves unrelated methods.
+
+### `extranjeros-sin-limite-en-alineacion`
+
+The six places that read the competition's line-up maximum get 65535 instead ([GAME-INTERNALS.md](GAME-INTERNALS.md#foreign-players)): each 6-byte call becomes a 6-byte `mov eax,0FFFFh; nop`. That covers confirming a line-up, swapping two players, and the automatic line-ups of every club.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x1F4F8`, `0x93470`, `0x944FC`, `0x569068` | `FF 92 94 00 00 00` (`call dword ptr [edx+94h]`) | `B8 FF FF 00 00 90` (`mov eax,0FFFFh; nop`) |
+| | `0x93CBF`, `0x95D49` | `FF 90 94 00 00 00` (`call dword ptr [eax+94h]`) | `B8 FF FF 00 00 90` |
+
+Both tested with a club with both limits: it signed foreign players past its limit, and confirmed a line-up with more foreign players than allowed.
 
 ## How it works
 
