@@ -18,6 +18,12 @@ An unofficial, open-source patch that makes **PC FÚTBOL 2001** (Dinamic Multime
 | The game can crash when quitting | Fixed by the new graphics component (in testing) |
 | Random crashes ending in *"La aplicación no puede continuar"* | Cause found: the game writes to memory it has already freed. Much reduced by the memory compatibility layer (in testing); fixes in the game's code in progress |
 
+It also fixes crashes the original game already had in 2001:
+
+| Problem in the original game | Status |
+|---|---|
+| With the advertising boards (*Vallas*, in *Estadio*) on *Auto* and no *Encargado del campo* (groundskeeper), the game crashes with *"La aplicación no puede continuar"* | Fixed: the boards are still sold automatically, as if by the assistant, as the game does with other missing employees |
+
 The details of each problem are in [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md).
 
 ## What you will need

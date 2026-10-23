@@ -2,6 +2,8 @@
 
 #include "backend_log.h"
 
+#include <dbghelp.h>
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -12,10 +14,27 @@ constexpr DWORD kCppExceptionCode = 0xE06D7363;  // raised by MSVC's throw
 constexpr DWORD kCppExceptionMagic = 0x19930520;
 constexpr LONG kMaxCppExceptionsLogged = 40;     // the game also throws exceptions as normal control flow
 constexpr LONG kMaxFaultsLogged = 20;
+constexpr DWORD kDumpTimeoutMs = 2 * 60 * 1000;
 
 volatile LONG g_cppExceptions;
 volatile LONG g_faults;
 __declspec(thread) bool t_inHandler;
+
+HMODULE g_self;
+char g_folder[MAX_PATH];  // this DLL's folder, the game's, with a trailing backslash
+// [diagnostics] dump_on_fault = N: the first N faults in the game's own code each write a full memory dump. The game
+// catches its faults and shows "La aplicación no puede continuar", so Windows never writes one.
+LONG g_dumpsAllowed;
+volatile LONG g_dumpsWritten;
+
+struct DumpRequest
+{
+    EXCEPTION_POINTERS* pointers;
+    DWORD threadId;
+    char path[MAX_PATH];
+    bool written;
+};
+DumpRequest g_dumpRequest;  // static: it must outlive a dump that times out
 
 void Describe(uintptr_t address, char* out, size_t size)
 {
@@ -84,6 +103,60 @@ void CppExceptionText(const EXCEPTION_RECORD* record, uint32_t& code, char* text
     }
 }
 
+// Code in the game's folder (manager.exe, gfxwin.dll, ...) other than this DLL, or in no module at all (a jump through
+// a bad pointer). Faults in Windows' or the drivers' code are often handled on purpose and aren't dumped.
+bool IsGameCode(uintptr_t address)
+{
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(address), &module) ||
+        !module)
+        return true;
+    if (module == g_self)
+        return false;
+    char path[MAX_PATH];
+    GetModuleFileNameA(module, path, MAX_PATH);
+    return _strnicmp(path, g_folder, strlen(g_folder)) == 0;
+}
+
+DWORD WINAPI WriteDumpThread(void*)
+{
+    using MiniDumpWriteDumpFn = BOOL(WINAPI*)(HANDLE, DWORD, HANDLE, MINIDUMP_TYPE, PMINIDUMP_EXCEPTION_INFORMATION,
+                                              PMINIDUMP_USER_STREAM_INFORMATION, PMINIDUMP_CALLBACK_INFORMATION);
+    HMODULE dbghelp = LoadLibraryExA("dbghelp.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    const auto writeDump = dbghelp ? reinterpret_cast<MiniDumpWriteDumpFn>(GetProcAddress(dbghelp, "MiniDumpWriteDump")) : nullptr;
+    if (!writeDump)
+        return 0;
+    HANDLE file = CreateFileA(g_dumpRequest.path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return 0;
+    MINIDUMP_EXCEPTION_INFORMATION exception{g_dumpRequest.threadId, g_dumpRequest.pointers, FALSE};
+    const auto type = static_cast<MINIDUMP_TYPE>(MiniDumpWithFullMemory | MiniDumpWithFullMemoryInfo | MiniDumpWithHandleData |
+                                                 MiniDumpWithThreadInfo | MiniDumpWithUnloadedModules);
+    g_dumpRequest.written = writeDump(GetCurrentProcess(), GetCurrentProcessId(), file, type, &exception, nullptr, nullptr) != FALSE;
+    CloseHandle(file);
+    return 0;
+}
+
+void WriteDump(EXCEPTION_POINTERS* pointers)
+{
+    SYSTEMTIME now;
+    GetLocalTime(&now);
+    g_dumpRequest.pointers = pointers;
+    g_dumpRequest.threadId = GetCurrentThreadId();
+    g_dumpRequest.written = false;
+    _snprintf_s(g_dumpRequest.path, sizeof g_dumpRequest.path, _TRUNCATE, "%sdcogl-%04u%02u%02u-%02u%02u%02u.dmp", g_folder,
+                now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+    // From another thread: the faulting one may be short of stack. The game waits meanwhile, frozen as it was.
+    if (HANDLE thread = CreateThread(nullptr, 0, WriteDumpThread, nullptr, 0, nullptr))
+    {
+        WaitForSingleObject(thread, kDumpTimeoutMs);
+        CloseHandle(thread);
+    }
+    BackendLog("diagnostics: %s %s\n", g_dumpRequest.written ? "dump written to" : "could not write the dump",
+               g_dumpRequest.path + strlen(g_folder));
+}
+
 LONG CALLBACK OnException(EXCEPTION_POINTERS* pointers)
 {
     const EXCEPTION_RECORD* record = pointers->ExceptionRecord;
@@ -132,6 +205,10 @@ LONG CALLBACK OnException(EXCEPTION_POINTERS* pointers)
                 BackendLog("exception: 0x%08lx at %s\n", code, where);
             }
         }
+        // Not on a stack overflow: there is no stack left to wait on another thread.
+        if (g_dumpsAllowed > 0 && code != EXCEPTION_STACK_OVERFLOW && IsGameCode(reinterpret_cast<uintptr_t>(record->ExceptionAddress)) &&
+            InterlockedIncrement(&g_dumpsWritten) <= g_dumpsAllowed)
+            WriteDump(pointers);
     }
     SetLastError(lastError);
     t_inHandler = false;
@@ -139,8 +216,17 @@ LONG CALLBACK OnException(EXCEPTION_POINTERS* pointers)
 }
 }  // namespace
 
-void InstallDiagnostics(HMODULE)
+void InstallDiagnostics(HMODULE self)
 {
+    g_self = self;
+    GetModuleFileNameA(self, g_folder, MAX_PATH);
+    if (char* slash = strrchr(g_folder, '\\'))
+        slash[1] = 0;
+    char ini[MAX_PATH];
+    _snprintf_s(ini, sizeof ini, _TRUNCATE, "%sdcogl.ini", g_folder);
+    g_dumpsAllowed = static_cast<LONG>(GetPrivateProfileIntA("diagnostics", "dump_on_fault", 0, ini));
+    if (g_dumpsAllowed > 0)
+        BackendLog("diagnostics: a full memory dump for each of the first %ld faults in the game's code\n", g_dumpsAllowed);
     AddVectoredExceptionHandler(1, OnException);
 }
 

@@ -18,6 +18,12 @@ Parche no oficial y de código abierto para que **PC FÚTBOL 2001** (Dinamic Mul
 | El juego puede colgarse al salir | Resuelto con el componente gráfico nuevo (en pruebas) |
 | Cuelgues aleatorios que terminan con *"La aplicación no puede continuar"* | Causa encontrada: el juego escribe en memoria que ya ha liberado. La capa de compatibilidad de memoria los reduce mucho (en pruebas); los arreglos en el código del juego están en curso |
 
+También arregla cuelgues que el juego ya tenía en 2001:
+
+| Problema del juego original | Estado |
+|---|---|
+| Con las *Vallas* (en *Estadio*) en *Auto* y sin *Encargado del campo*, el juego se cuelga con *"La aplicación no puede continuar"* | Resuelto: las vallas se siguen vendiendo solas, como si las llevara el asistente, como hace el juego con los demás empleados que faltan |
+
 Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) (en inglés).
 
 ## Qué vas a necesitar
