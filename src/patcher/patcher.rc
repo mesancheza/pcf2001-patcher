@@ -1,0 +1,52 @@
+// The patcher's window, version information, and the new graphics component it installs. Spanish only.
+#pragma code_page(65001)
+
+#include <windows.h>
+#include "resource.h"
+
+LANGUAGE LANG_SPANISH, SUBLANG_SPANISH_MODERN
+
+// dcogl.dll, built from src/backend; its path comes from CMake.
+DCOGL_DLL RCDATA DCOGL_DLL_PATH
+
+IDD_MAIN DIALOGEX 0, 0, 330, 210
+STYLE DS_SETFONT | DS_SHELLFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
+CAPTION "Parche para PC FÚTBOL 2001"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "Carpeta del juego:", IDC_STATIC, 10, 10, 310, 10
+    EDITTEXT IDC_FOLDER, 10, 22, 236, 14, ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON "Cambiar...", IDC_BROWSE, 252, 21, 68, 15
+    GROUPBOX "Estado", IDC_STATIC, 10, 44, 310, 42
+    LTEXT "", IDC_STATE, 18, 56, 294, 26
+    // Text set in main.cpp: the resource compiler cuts control texts at 256 characters.
+    LTEXT "", IDC_DESCRIPTION, 10, 92, 310, 46
+    PUSHBUTTON "Aplicar el parche", IDC_APPLY, 10, 146, 100, 16
+    PUSHBUTTON "Quitar el parche", IDC_REMOVE, 116, 146, 100, 16
+    PUSHBUTTON "Cerrar", IDCANCEL, 250, 146, 70, 16
+    LTEXT "", IDC_RESULT, 10, 170, 310, 34
+END
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION PATCHER_VERSION_COMMAS
+PRODUCTVERSION PATCHER_VERSION_COMMAS
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "0C0A04B0"
+        BEGIN
+            VALUE "FileDescription", "Parche para PC FÚTBOL 2001 (no oficial)"
+            VALUE "FileVersion", PATCHER_VERSION_STRING
+            VALUE "ProductName", "pcf2001-patcher"
+            VALUE "ProductVersion", PATCHER_VERSION_STRING
+            VALUE "OriginalFilename", "pcf2001-patch.exe"
+            VALUE "LegalCopyright", "Licencia MIT. No afiliado a Dinamic Multimedia."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0C0A, 1200
+    END
+END
