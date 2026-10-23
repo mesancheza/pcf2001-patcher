@@ -10,12 +10,12 @@ An unofficial, open-source patch that makes **PC FÚTBOL 2001** (Dinamic Multime
 
 | Problem on modern Windows | Status |
 |---|---|
-| The game stops at startup with *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Root cause found, fix in progress |
-| Full screen switches the whole desktop to 800×600 | Planned: rendered at the game's resolution and scaled to your screen, keeping the aspect ratio |
-| Windowed mode draws some screen elements in the wrong place | Planned: same fix as above |
-| Some long team names show garbage, and some player names appear on the wrong players (previously only avoidable with "Windows XP SP2" compatibility mode) | Being investigated; will be fixed in the game's code |
-| The game can crash when quitting | Cause found (the game uses already-freed graphics objects while shutting down); fix planned in the new graphics component |
-| Other random crashes reported by players | To be investigated after the issues above |
+| The game stops at startup with *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Fixed by the new graphics component (in testing) |
+| Full screen switches the whole desktop to 800×600 | Fixed (in testing): the game is drawn at its own resolution and scaled to your screen, keeping the aspect ratio |
+| Windowed mode draws some screen elements in the wrong place | Should be fixed by the new graphics component; not tested yet |
+| Some long team names show garbage, and some player names appear on the wrong players (previously only avoidable with "Windows XP SP2" compatibility mode) | Cause found: the game reads memory it has already freed. Worked around by a memory compatibility layer (in testing); fixes in the game's code in progress |
+| The game can crash when quitting | Fixed by the new graphics component (in testing) |
+| Random crashes ending in *"La aplicación no puede continuar"* | Cause found: the game writes to memory it has already freed. Much reduced by the memory compatibility layer (in testing); fixes in the game's code in progress |
 
 The details of each problem are in [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md).
 
@@ -42,7 +42,16 @@ The patch is a program you run on your computer, so you should be able to check 
 - **You can build it yourself** with free Microsoft tools by running one script. See [docs/BUILDING.md](docs/BUILDING.md).
 - **Builds are reproducible:** the same source and tools always produce exactly the same files, so you can compare your own build with a published release.
 - **Every change to the game's files will be documented:** which file, where, the original bytes, the new bytes, and why. See [docs/DESIGN.md](docs/DESIGN.md).
-- **Releases will publish SHA-256 hashes** of everything they contain.
+- **Releases are built by GitHub Actions** from the public source, never on a developer's computer, and publish SHA-256 hashes of everything they contain, with the toolchain used. See [docs/RELEASING.md](docs/RELEASING.md).
+
+## Reporting a problem
+
+If the game crashes or something looks wrong, please report it and attach the log files from the game folder:
+
+- `dcogl.log`: the current or most recent session;
+- `dcogl.old.log`: the session before it. After a crash, people often start the game again before reporting, and this file still has the crash.
+
+Say what you were doing when it happened, and roughly at what time: each line of the log has a time stamp. The logs say which Windows version, graphics card, game version and database you have, but nothing that identifies you, and the patch never sends them anywhere by itself.
 
 ## Documentation
 
@@ -52,6 +61,7 @@ The patch is a program you run on your computer, so you should be able to check 
 | [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) | What we have learned about how the game works and why it fails on modern Windows |
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | The game's graphics plug-in interface, which the new graphics component implements |
 | [docs/BUILDING.md](docs/BUILDING.md) | How to build everything from source |
+| [docs/RELEASING.md](docs/RELEASING.md) | How releases are built and published |
 | [docs/TOOLS.md](docs/TOOLS.md) | Development tools in this repository |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, and what must never be committed |
 

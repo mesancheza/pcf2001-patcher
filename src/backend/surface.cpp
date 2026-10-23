@@ -1,11 +1,15 @@
 #include "surface.h"
 
+#include "backend_log.h"
+
 #include <algorithm>
 #include <cstring>
 #include <new>
 
 namespace
 {
+constexpr DWORD kSurfaceSlack = 4096;  // readable bytes before and after the pixels of every surface
+
 struct DibInfo
 {
     BITMAPINFOHEADER header;
@@ -106,10 +110,12 @@ bool Surface::Reset(const SurfaceDesc& desc)
     // Take over the new resources; the palette is kept.
     m_desc = replacement.m_desc;
     m_bitmap = replacement.m_bitmap;
+    m_section = replacement.m_section;
     m_bits = replacement.m_bits;
     m_stride = replacement.m_stride;
     m_bytesPerPixel = replacement.m_bytesPerPixel;
     replacement.m_bitmap = nullptr;
+    replacement.m_section = nullptr;
     return true;
 }
 
@@ -143,18 +149,35 @@ bool Surface::Allocate(const SurfaceDesc& requested)
             info.header.biClrUsed = 256;
     }
 
+    // The pixels live in a memory section with slack before and after them. The game's drawing code reads a little
+    // outside the surfaces it blends from (e.g. Utils.dll's mask fill reads the byte before each row and only then
+    // checks bounds). With dcsfx the pixels were heap memory, where that was harmless; a bare DIB section starts on
+    // a page boundary and the byte before it may not be mapped.
+    const int stride = ((desc.width * desc.bitsPerPixel + 31) / 32) * 4;
+    const uint64_t sectionSize = kSurfaceSlack + static_cast<uint64_t>(stride) * desc.height + kSurfaceSlack;
+    HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, static_cast<DWORD>(sectionSize >> 32),
+                                        static_cast<DWORD>(sectionSize), nullptr);
+    if (!section)
+        return false;
     void* bits = nullptr;
-    HBITMAP bitmap = CreateDIBSection(nullptr, reinterpret_cast<BITMAPINFO*>(&info), DIB_RGB_COLORS, &bits, nullptr, 0);
+    HBITMAP bitmap = CreateDIBSection(nullptr, reinterpret_cast<BITMAPINFO*>(&info), DIB_RGB_COLORS, &bits, section, kSurfaceSlack);
     if (!bitmap || !bits)
     {
         if (bitmap)
             DeleteObject(bitmap);
+        CloseHandle(section);
         return false;
     }
+    static bool checked;
+    MEMORY_BASIC_INFORMATION before{};
+    if (!checked && VirtualQuery(static_cast<uint8_t*>(bits) - 1, &before, sizeof before) && before.State != MEM_COMMIT)
+        BackendLog("surface: the memory before the pixels is not readable; the game's over-reads may fault\n");
+    checked = true;
+    m_section = section;
     m_bitmap = bitmap;
     m_bits = bits;
     m_bytesPerPixel = desc.bitsPerPixel / 8;
-    m_stride = ((desc.width * desc.bitsPerPixel + 31) / 32) * 4;
+    m_stride = stride;
     memset(m_bits, 0, static_cast<size_t>(m_stride) * desc.height);
 
     desc.pitch = -1;
@@ -177,6 +200,11 @@ void Surface::Free()
     {
         DeleteObject(m_bitmap);
         m_bitmap = nullptr;
+    }
+    if (m_section)
+    {
+        CloseHandle(m_section);
+        m_section = nullptr;
     }
     m_bits = nullptr;
 }

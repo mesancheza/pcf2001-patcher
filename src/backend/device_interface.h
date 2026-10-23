@@ -79,7 +79,7 @@ public:
     /*  62 +0x0f8 */ virtual uint32_t Slot062(uint32_t a1) = 0;
     /*  63 +0x0fc */ virtual bool SetTexture(Surface* texture) = 0;  // Read back by slot 66
     /*  64 +0x100 */ virtual uint32_t Slot064(uint32_t a1) = 0;
-    /*  65 +0x104 */ virtual uint32_t Slot065(uint32_t a1, uint32_t a2) = 0;
+    /*  65 +0x104 */ virtual bool SetSurfaceColorKey(Surface* surface, uint32_t colorKey) = 0;  // Transparent color for copies from the surface; kNoColorKey for none
     /*  66 +0x108 */ virtual Surface* GetTexture() = 0;
     /*  67 +0x10c */ virtual uint32_t Slot067() = 0;
     /*  68 +0x110 */ virtual uint32_t Slot068(uint32_t a1) = 0;

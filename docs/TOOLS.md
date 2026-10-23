@@ -2,6 +2,33 @@
 
 Tools in this repository that help develop the patch. **None of them are part of the patch players install.**
 
+## The patch's own log and diagnostic mode
+
+The new backend writes `dcogl.log` for every session, and keeps the previous one as `dcogl.old.log` ([DESIGN.md D14](DESIGN.md#d14-a-log-players-can-send)). Settings for testing go in `dcogl.ini`, next to `dcogl.dll`:
+
+```ini
+[memory]
+; Size of the quarantine for freed memory, in MB. 0 turns the memory layer off, to compare with the original behavior.
+quarantine_mb=192
+; 1 records which code freed each block the game keeps writing to, and writes it to the log when that block leaves
+; the quarantine. Costs about 16 MB and some speed.
+diagnose=0
+; Fills every new block the game allocates with this byte (hexadecimal), instead of whatever the heap had there, so
+; reads of memory the game never initialized show up as strange values. Off when absent. Works with the quarantine on
+; or off. With 55, a 32-bit number read from uninitialized memory is 1431655765, and a pointer is 0x55555555.
+fill_new=55
+```
+
+A small quarantine (for example `quarantine_mb=32`) makes the memory bugs show up within minutes, which helps when testing changes to the layer.
+
+| Line | Meaning |
+|---|---|
+| `memory: N frees, N moved resizes, …` | Every 30 seconds: what the game freed, the quarantine's size, how many blocks went back to Windows, and how many were kept because the game wrote to them after freeing them. |
+| `memory: freed block of N bytes at … was written to afterwards; kept. Starts: … freed by: …` | A freed block the game kept writing to. Shows its first bytes, as hexadecimal and as text, and, in diagnostic mode, the code that freed it. |
+| `exception: C++ <type>, code …` | The game threw a C++ exception. Code `0x4e3b` is the game's normal way of quitting. |
+| `exception: access violation at <module>+<offset>, reading address …` | A fault. The game may handle it and continue, or show *"La aplicación no puede continuar"*. |
+| `window was made topmost; making it a normal window again` | Expected once per session; see [GAME-INTERNALS.md](GAME-INTERNALS.md#full-screen-window-always-on-top). |
+
 ## backend-trace
 
 `tools/backend-trace` builds `dcogl.dll`, a logging stand-in for the game's graphics backend. It does two jobs while the game runs normally:

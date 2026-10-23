@@ -1,6 +1,7 @@
 @echo off
 rem Builds everything as 32-bit into build\<config>.
-rem Usage: build.bat [Release|Debug]   (default: Release)
+rem Usage: build.bat [Release|Debug] [version]   (default: Release, and the version in CMakeLists.txt)
+rem The version is what the built files report; pass a release's version to rebuild that release exactly.
 rem Needs Visual Studio or its Build Tools with the "Desktop development with C++" workload.
 setlocal
 
@@ -15,5 +16,5 @@ if not defined VSDIR (
 )
 
 call "%VSDIR%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
-cmake -S "%~dp0." -B "%~dp0build\%CONFIG%" -G Ninja -DCMAKE_BUILD_TYPE=%CONFIG% || exit /b 1
+cmake -S "%~dp0." -B "%~dp0build\%CONFIG%" -G Ninja -DCMAKE_BUILD_TYPE=%CONFIG% "-DPCF_PATCH_VERSION=%~2" || exit /b 1
 cmake --build "%~dp0build\%CONFIG%" || exit /b 1

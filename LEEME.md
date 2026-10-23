@@ -10,12 +10,12 @@ Parche no oficial y de código abierto para que **PC FÚTBOL 2001** (Dinamic Mul
 
 | Problema en Windows actual | Estado |
 |---|---|
-| El juego se detiene al arrancar con *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Causa encontrada, solución en curso |
-| La pantalla completa cambia todo el escritorio a 800×600 | Previsto: el juego se dibuja a su resolución y se escala a tu pantalla manteniendo la proporción |
-| En modo ventana, algunos elementos se dibujan en el sitio equivocado | Previsto: lo resuelve el mismo cambio |
-| Algunos nombres largos de equipos salen como caracteres sin sentido y algunos jugadores aparecen con el nombre de otro (hasta ahora solo se evitaba con el modo de compatibilidad "Windows XP SP2") | En investigación; se arreglará en el código del juego |
-| El juego puede colgarse al salir | Causa encontrada (al cerrarse, el juego usa objetos gráficos que ya ha liberado); la solución irá en el componente gráfico nuevo |
-| Otros cuelgues aleatorios que han reportado los jugadores | Se investigarán después de lo anterior |
+| El juego se detiene al arrancar con *"No se pudo iniciar DirectX. El programa no puede comenzar."* | Resuelto con el componente gráfico nuevo (en pruebas) |
+| La pantalla completa cambia todo el escritorio a 800×600 | Resuelto (en pruebas): el juego se dibuja a su resolución y se escala a tu pantalla manteniendo la proporción |
+| En modo ventana, algunos elementos se dibujan en el sitio equivocado | Debería resolverlo el componente gráfico nuevo; aún sin probar |
+| Algunos nombres largos de equipos salen como caracteres sin sentido y algunos jugadores aparecen con el nombre de otro (hasta ahora solo se evitaba con el modo de compatibilidad "Windows XP SP2") | Causa encontrada: el juego lee memoria que ya ha liberado. Lo evita una capa de compatibilidad de memoria (en pruebas); los arreglos en el código del juego están en curso |
+| El juego puede colgarse al salir | Resuelto con el componente gráfico nuevo (en pruebas) |
+| Cuelgues aleatorios que terminan con *"La aplicación no puede continuar"* | Causa encontrada: el juego escribe en memoria que ya ha liberado. La capa de compatibilidad de memoria los reduce mucho (en pruebas); los arreglos en el código del juego están en curso |
 
 Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) (en inglés).
 
@@ -42,7 +42,16 @@ El parche es un programa que vas a ejecutar en tu ordenador, así que deberías 
 - **Puedes compilarlo tú mismo** con herramientas gratuitas de Microsoft ejecutando un único script. Las instrucciones están en [docs/BUILDING.md](docs/BUILDING.md) (en inglés).
 - **Las compilaciones son reproducibles:** con el mismo código y las mismas herramientas se obtienen exactamente los mismos archivos, así que puedes comparar tu compilación con la versión publicada.
 - **Cada cambio en los archivos del juego estará documentado:** qué archivo, dónde, los bytes originales, los nuevos y por qué.
-- **Cada versión publicará los hashes SHA-256** de todos sus archivos.
+- **Las versiones las compila GitHub Actions** a partir del código público, nunca el ordenador de un desarrollador, y publican los hashes SHA-256 de todos sus archivos junto con las herramientas usadas. Ver [docs/RELEASING.md](docs/RELEASING.md) (en inglés).
+
+## Cómo informar de un problema
+
+Si el juego se cuelga o algo se ve mal, cuéntalo y adjunta los archivos de registro que hay en la carpeta del juego:
+
+- `dcogl.log`: la sesión actual o la última;
+- `dcogl.old.log`: la sesión anterior. Después de un cuelgue es habitual volver a abrir el juego antes de avisar, y este archivo todavía tiene el cuelgue.
+
+Explica qué estabas haciendo cuando pasó y, más o menos, a qué hora: cada línea del registro lleva la hora. Los registros dicen qué versión de Windows, tarjeta gráfica, versión del juego y base de datos tienes, pero nada que te identifique, y el parche nunca los envía a ningún sitio por su cuenta.
 
 ## Documentación
 
@@ -54,6 +63,7 @@ La documentación técnica está en inglés:
 | [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) | Lo que hemos aprendido de cómo funciona el juego y por qué falla en Windows actual |
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | La interfaz de módulos gráficos del juego, que implementa el componente gráfico nuevo |
 | [docs/BUILDING.md](docs/BUILDING.md) | Cómo compilar todo desde el código fuente |
+| [docs/RELEASING.md](docs/RELEASING.md) | Cómo se compilan y publican las versiones |
 | [docs/TOOLS.md](docs/TOOLS.md) | Herramientas de desarrollo del repositorio |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Cómo colaborar y qué no se debe subir nunca |
 

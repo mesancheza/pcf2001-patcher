@@ -23,7 +23,6 @@
     uint32_t Slot061(uint32_t a1, uint32_t a2, uint32_t a3) override { (void)a1; (void)a2; (void)a3; return 0; }
     uint32_t Slot062(uint32_t a1) override { (void)a1; return 0; }
     uint32_t Slot064(uint32_t a1) override { (void)a1; return 0; }
-    uint32_t Slot065(uint32_t a1, uint32_t a2) override { return Unimplemented(65, 2, a1, a2, 0, 0); }
     uint32_t Slot067() override { return 0; }
     uint32_t Slot068(uint32_t a1) override { (void)a1; return 0; }
     uint32_t Slot069(uint32_t a1) override { return Unimplemented(69, 1, a1, 0, 0, 0); }

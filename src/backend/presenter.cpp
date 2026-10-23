@@ -71,6 +71,26 @@ bool Presenter::Create(HWND window)
         return false;
     }
 
+    // Which graphics card and driver level a player's log was written with.
+    static bool adapterLogged;
+    IDXGIDevice* dxgiDevice = nullptr;
+    if (!adapterLogged && SUCCEEDED(m_device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice))))
+    {
+        IDXGIAdapter* adapter = nullptr;
+        DXGI_ADAPTER_DESC adapterDesc{};
+        if (SUCCEEDED(dxgiDevice->GetAdapter(&adapter)) && SUCCEEDED(adapter->GetDesc(&adapterDesc)))
+        {
+            char name[128];
+            WideCharToMultiByte(CP_UTF8, 0, adapterDesc.Description, -1, name, sizeof name, nullptr, nullptr);
+            BackendLog("graphics: %s, feature level %u.%u, %u MB video memory\n", name, static_cast<unsigned>(m_device->GetFeatureLevel() >> 12),
+                       static_cast<unsigned>((m_device->GetFeatureLevel() >> 8) & 0xF), static_cast<unsigned>(adapterDesc.DedicatedVideoMemory >> 20));
+            adapterLogged = true;
+        }
+        if (adapter)
+            adapter->Release();
+        dxgiDevice->Release();
+    }
+
     // The game handles Alt+Enter and window changes itself.
     IDXGIFactory* factory = nullptr;
     if (SUCCEEDED(m_swapChain->GetParent(__uuidof(IDXGIFactory), reinterpret_cast<void**>(&factory))))

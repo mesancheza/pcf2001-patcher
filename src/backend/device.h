@@ -66,6 +66,7 @@ public:
     TextureFormatList* GetTextureFormats() override;
     Surface* CreateTexture(const SurfaceDesc* desc, uint32_t reserved1, uint32_t reserved2) override;
     bool SetTexture(Surface* texture) override;
+    bool SetSurfaceColorKey(Surface* surface, uint32_t colorKey) override;
     Surface* GetTexture() override;
     VertexBuffer* CreateVertexBuffer(const VertexBufferDesc* desc, uint32_t reserved) override;
     bool ReleaseVertexBuffer(VertexBuffer* buffer) override;
@@ -129,6 +130,7 @@ private:
 
     // Window placement saved while showing full screen as a borderless window.
     bool m_borderless = false;
+    bool m_loggedTopmost = false;
     LONG_PTR m_savedStyle = 0;
     LONG_PTR m_savedExStyle = 0;
     RECT m_savedRect{};

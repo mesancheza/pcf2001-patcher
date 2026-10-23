@@ -17,13 +17,17 @@ add_library(backend SHARED
     backend.def
     backend_log.cpp
     device.cpp
+    diagnostics.cpp
     exports.cpp
     input_mapping.cpp
+    memory_compat.cpp
     presenter.cpp
+    session_info.cpp
     surface.cpp
     ${GENERATED_DIR}/present_vs.h
     ${GENERATED_DIR}/present_ps.h)
 set_target_properties(backend PROPERTIES OUTPUT_NAME dcogl)
 target_include_directories(backend PRIVATE ${GENERATED_DIR})
-target_compile_definitions(backend PRIVATE _CRT_SECURE_NO_WARNINGS)
-target_link_libraries(backend PRIVATE d3d11 dxgi)
+target_compile_definitions(backend PRIVATE _CRT_SECURE_NO_WARNINGS PATCH_VERSION="${PATCH_VERSION_STRING}")
+target_link_libraries(backend PRIVATE d3d11 dxgi advapi32)
+install(FILES $<TARGET_FILE:backend> DESTINATION .)

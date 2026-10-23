@@ -81,7 +81,47 @@ In windowed mode, some elements, such as menu buttons and dialog contents, are d
 - The database files are correct. Every index entry in the database files points at a valid record, and the names decode correctly at their indexed positions, both in the original data and after Dinamic's data updates.
 - The text decoding is correct and simple (see below).
 
-So the fault is in the game's code, and it depends on behavior that changed after Windows XP, such as how memory is reused. The investigation continues, and the fix will go into the game's code ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)).
+So the fault is in the game's code, and it depends on behavior that changed after Windows XP, such as how memory is reused.
+
+**Cause:** the game reads names through pointers to memory it has already freed (see [Memory bugs](#memory-bugs)). Confirmed by experiment: on the *Introduce nombre y equipo* screen, choosing F.C. Barcelona shows garbage next to the coach's name on the original heap, and "F.C. Barcelona" with freed memory held in quarantine ([DESIGN.md D13](DESIGN.md#d13-a-memory-compatibility-layer-while-the-games-memory-bugs-are-found-and-fixed)). With a quarantine too small for the stale pointer's lifetime, a garbled name shows up again, in the *Fichar* screen's transfer list for example. The garbage is only in memory: loading the same saved game with a large enough quarantine shows the name correctly, so saved games are not damaged.
+
+The first stale pointers found come from how the game loads its records: see [Found: pointers into buffers that get shrunk](#found-pointers-into-buffers-that-get-shrunk).
+
+## Memory bugs
+
+The game has use-after-free bugs in many places: it keeps pointers to heap blocks after freeing them, then reads and writes through them. On the Windows versions of its time this mostly went unnoticed. On Windows 10/11 the heap reuses freed memory differently, so:
+
+- **Stale reads** return whatever reused the memory: garbled or misassigned names.
+- **Stale writes** corrupt whatever reused the memory, or the heap's own bookkeeping. In crash dumps, the heap is overwritten with ASCII digits, and Windows' heap code faults on addresses such as `0x30313631` (the text "1610").
+
+These are the random crashes that end with *"La aplicación no puede continuar"*. The game catches the fault, shows that message, and then exits.
+
+Observed in an automated season with the memory layer on: the game played without errors for about 15 minutes, until its 192 MB quarantine filled up and started releasing blocks. Thirty seconds later Windows' heap code faulted on ASCII text and the game stopped. The game frees memory quickly: about 150,000 frees and 400,000 resizes in 15 minutes.
+
+Both kinds of access go unnoticed under a debugger, because Windows uses a slower debug heap there, which reuses memory differently.
+
+### Found: pointers into buffers that get shrunk
+
+Found with Windows' page heap, which makes every access to freed memory fault immediately.
+
+The function at VA `0x499F80` in `manager.exe` loads a team record:
+
+1. It allocates one buffer for the whole record and stores it in the team object at `+0x88`.
+2. It reads the record's strings into that buffer, one after another, and points fields of the team object into the middle of it. The team's name is at `+0x04`.
+3. At the end, if the record used less space than allocated, it shrinks the buffer to the size actually used, with `gfxwin.dll`'s `ResizeMemFun` (a `HeapReAlloc`, at `0x49A403`).
+4. Right after that, it formats `"<E>%s|%d</>"` with the name pointer (at `0x49A430`).
+
+On Windows XP, shrinking a heap block always happened in place, so the interior pointers stayed valid. Today's heap moves a block when the new size falls into a different size class. The name pointers are then left on the freed old block. This is the cause of the garbled team names: on the *Introduce nombre y equipo* screen, F.C. Barcelona shows correctly once shrinking never moves blocks, even with the quarantine practically off. The game probably loads other records (players, coaches) the same way.
+
+**Fix:** the memory layer never moves a block when the game shrinks it, as on Windows XP ([DESIGN.md D13](DESIGN.md#d13-a-memory-compatibility-layer-while-the-games-memory-bugs-are-found-and-fixed)). The only cost is the unused tail of each shrunk buffer.
+
+## Text drawing reads outside its glyph image
+
+`Utils.dll` blends text into 32-bit surfaces with an 8-bit glyph mask (the function at RVA `0x25FE0`). For each row it reads the mask byte **before** checking whether the position is inside the mask, so it reads one byte before the mask's pixels. With the original backends, surface pixels were heap memory, where that byte is always readable. Memory that starts exactly at a page boundary may have nothing mapped before it, and then the game faults. The new backend allocates every surface's pixels with 4 KB of spare memory before and after them.
+
+## Full-screen window always on top
+
+In full screen, `CGFXMainWindow::ResetMode` (`gfxwin.dll`) makes the game window topmost (`HWND_TOPMOST`). With DirectDraw's exclusive mode this didn't matter. With a borderless window it keeps the game covering the screen after Alt+Tab, so the new backend removes the topmost state.
 
 ## Crash on exit
 
@@ -96,7 +136,32 @@ So the fault is in the game's code, and it depends on behavior that changed afte
 
 This is a use-after-free: an ordering bug in the game's shutdown. It may have gone unnoticed on older Windows, where freed memory often kept its old contents for a while; that part is unconfirmed.
 
-**Planned fix:** the new backend can handle this inside our own code, without changing the game's files, by keeping destroyed devices' objects valid until the process ends, with methods that do nothing once the device is shut down.
+**Fix:** the new backend handles this in its own code, without changing the game's files. It keeps destroyed devices' objects valid until the process ends, and their methods do nothing once the device is shut down.
+
+## Bugs reported in the original game
+
+Bugs players remember from the game as it was in 2001, on the Windows of its time. Whether the patch fixes them is still to be decided: so far it only fixes what modern Windows broke ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)).
+
+| Bug | Details |
+|---|---|
+| Absurd TV offers in lower divisions | See below. |
+| The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. |
+
+### Absurd TV offers
+
+**Symptom:** in *Finanzas → Ofertas TV*, third-division clubs get TV offers "por todos los derechos" (for all the rights) of millions of millions of pesetas, clearly not intended. Seen consistently with Italian Serie C1 clubs (Como, Fidelis Andria), for example 2.448.132, 28.060.451, 36.618.891 and 42.090.678 million. Players remember this from the original game in 2001. Second division unconfirmed.
+
+**Related, probably the same bug:** some offers show only their duration, with no amount, and accepting one gives a contract worth 0. These appear in the same lists as the absurd amounts. A likely explanation is an amount so large that it overflows when it's formatted or converted, but that hasn't been checked. The offers are random, so the exact list changes with every new game.
+
+**Ruled out:** the memory layer's quarantine. With its diagnostic fill of new memory (`fill_new=55`, [TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnostic-mode)), the amounts didn't take values that would come from uninitialized memory.
+
+**Leads for a fix:** the offer texts come from the game's `contratostv.cpp` (their table entries are tagged `tx_contratostv_cpp`). The "%s por todos los derechos." format string is selected by language into the global at VA `0xBCE7B8` in `manager.exe`, by code at VA `0x986550`. The code that calculates the amounts hasn't been found yet.
+
+**Decision pending:** whether the patch fixes this. It changes the game's economy, which is a gameplay decision ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code), non-goals).
+
+### Youth player offered a salary of 0
+
+**Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.
 
 ## Text encoding
 

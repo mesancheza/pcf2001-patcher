@@ -162,6 +162,14 @@ LRESULT CALLBACK MappedWindowProc(HWND window, UINT message, WPARAM wParam, LPAR
         position->cy = g_forcedRect.bottom - g_forcedRect.top;
         position->flags &= ~(SWP_NOMOVE | SWP_NOSIZE);
     }
+    // In exclusive full screen Windows took the screen back from the game on Alt+Tab. Our full screen is a normal
+    // window, so the topmost z-order gfxwin asks for would hold the screen hostage.
+    if (message == WM_WINDOWPOSCHANGING)
+    {
+        auto* position = reinterpret_cast<WINDOWPOS*>(lParam);
+        if (!(position->flags & SWP_NOZORDER) && position->hwndInsertAfter == HWND_TOPMOST)
+            position->hwndInsertAfter = HWND_NOTOPMOST;
+    }
 
     const Mapping m = CurrentMapping();
     if (m.active)
