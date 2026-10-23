@@ -1,0 +1,7 @@
+; Same export names and ordinals as the game's own backends (dcd3d.dll, dcsfx.dll, dcsf.dll).
+LIBRARY dcogl
+EXPORTS
+    CrearDevice            @1
+    DescripcionDispositivo @2
+    DestruirDevice         @3
+    NumeroDispositivos     @4

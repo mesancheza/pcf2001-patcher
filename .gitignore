@@ -66,3 +66,30 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Build output
+build/
+out/
+.vs/
+*.dll
+*.exe
+*.lib
+*.exp
+
+# Local trace output from tools/backend-trace
+*-trace.log
+
+# Safety net: never commit original game files, disc images or memory dumps.
+# These belong to the user's own copy of the game, not to this repository.
+*.PAK
+*.pak
+*.FDI
+*.fdi
+*.DBC
+*.dbc
+*.iso
+*.ISO
+*.MPG
+*.mpg
+*.dmp
+*.ICO
