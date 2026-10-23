@@ -27,6 +27,7 @@ También arregla fallos que el juego ya tenía en 2001:
 | En *Estadio → Vallas*, *Rellena* y *Auto* parecen dejar sin vender la última valla de la última zona, hasta pulsar *Rellena* otra vez | Resuelto: la valla sí se vendía, pero la pantalla no se volvía a dibujar; ahora sí |
 | En *Estadio → Remodelar → Servicios*, encargar *Cafeterías* la misma semana que *Tienda del club*, *Enfermería* o *Lavabos* le da a la otra obra la duración de las cafeterías, y las dos terminan a la vez | Resuelto: como con los demás servicios, no se pueden encargar cafeterías mientras haya otra obra de servicios pendiente; el juego hace una cada vez |
 | Al terminar una cafetería, el coste semanal del estadio se lee de datos que no tienen nada que ver: casi siempre casi nada, pero puede ser un gasto absurdo en *Remodelar estadio* que arruina al club, y a menudo el encargado del campo avisa luego cada semana de que han terminado unas obras | Resuelto. Una partida guardada que ya reciba el aviso semanal lo seguirá recibiendo hasta su siguiente obra de servicios |
+| Al desplazar una lista, como la de *Jóvenes promesas*, a veces un jugador se queda en la misma fila mientras los demás se mueven, intercambiado con el de al lado | Resuelto: los jugadores con el mismo valor en la columna por la que se ordena ya no se intercambian |
 
 Los detalles técnicos de cada problema están en [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) (en inglés).
 

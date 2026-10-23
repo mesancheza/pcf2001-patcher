@@ -56,9 +56,10 @@ const PatchedFile kPatchedFiles[] = {
      {{0xFE960, {0x01}, {0x03}}}},
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "8881a45c1baef4125cb2a5e786e4494f5b2989a35f846d00bbc885c7b8c7bd49",
+    {kGameFiles[0], "70c3ad1cee8d1aefd57df7989d1fc47a29542a195d5096cd249fc7ccac816165",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
-     L"Rellena, two services works at once, services cost after a cafeteria is finished, fixed",
+     L"Rellena, two services works at once, services cost after a cafeteria is finished, rows with equal values "
+     L"swapping when a list is scrolled, fixed",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -159,7 +160,15 @@ const PatchedFile kPatchedFiles[] = {
         0xE8, 0x7F, 0x50, 0xFF, 0xFF,                // call 0x4C29D0 (moved: same target)
         0x33, 0xC0,                                  // xor eax,eax
         0xEB, 0x42,                                  // jmp 0x4CD997 (weekly cost 0, weeks eax = 0)
-        0x90, 0x90, 0x90, 0x90}}}},
+        0x90, 0x90, 0x90, 0x90}},
+      // Rows with equal values swapping when a list is scrolled: the lists' sort (0x8BE6D0, run on every scroll)
+      // inserts each row with a binary search that stops at the first row comparing equal and puts the row before
+      // it. Descending order is "not less than", so equal neighbours count as out of order and swap on every
+      // pass. Without the stop, the search places a row after its equals in descending order, and an already
+      // sorted list stays as it is. One stop for each of the sort's three kinds of row.
+      {0x4BE783, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE7C2 (rows of kind 5)
+      {0x4BE8C4, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE903 (rows of kinds 3 and 4)
+      {0x4BE9EF, {0x74, 0x3C}, {0x90, 0x90}}}},  // je 0x8BEA2D (rows of kinds 0 to 2)
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

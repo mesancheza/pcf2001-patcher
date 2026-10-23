@@ -179,6 +179,7 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 | A Cafeterías work shortens another services work ordered the same week | Fixed by the patch. See below. |
 | Absurd *Remodelar estadio* expenses after a cafeteria is finished | Fixed by the patch. See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. Fixed by the patch for new cases: see [Absurd stadium expenses after a cafeteria is finished](#absurd-stadium-expenses-after-a-cafeteria-is-finished). |
+| Scrolling a list makes a row seem to stay in place while the others move | Fixed by the patch. See [Rows with equal values swap when a list is scrolled](#rows-with-equal-values-swap-when-a-list-is-scrolled). |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
 
@@ -292,6 +293,24 @@ The memory layer's diagnostic fill of new memory (`fill_new`) was once thought t
 **The groundskeeper's weekly "works finished":** every week the team pays each kind of stadium work its weekly cost while its weeks counter isn't 0, and when the counter is exactly 1 the groundskeeper reports the works finished (VA `0x4A6353`–`0x4A64A4`; message `0x3F1`, or `0x3F2` for some services). The stadium update decides the counter. The code that recomputes the services' weekly cost has a branch for a work with 0 weeks left (VA `0x4CD996`) that sets the cost to 0 but the weeks to 1, and never moves it again; the "entry −1" read above lands there whenever `+0x1A0` is 0. From then on the club pays 0 every week and the groundskeeper reports finished works every week: the bug players remember. It persists in saved games.
 
 **Fix:** the block that finishes the work ends by setting the services' weekly cost and weeks to 0 (VA `0x4CD997`, the 0-weeks branch without its increment), as the other services do when theirs finish, instead of recomputing from the current work. The block is rewritten more compactly in place to make room (`inc byte ptr [esi+0Dh]` for three instructions, `or dword ptr [esi+464h],-1` for a longer `mov`), with its two calls aimed at the same functions. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). A saved game whose services counter is already stuck at 1 keeps the weekly message until its next services work.
+
+### Rows with equal values swap when a list is scrolled
+
+**Symptom:** in *Jóvenes promesas*, with enough players for the scroll bar, one click on a scroll arrow moves every row but one, which stays on the same screen row and swaps with its neighbour. Seen with Pazzaglia under Silva, and with one of two players called Mercuri sorted by *Jugador*. Players remember it from the original game. It doesn't always happen.
+
+**The lists:** the game's sortable lists share one class. Its sort (VA `0x8BE6D0`) is an insertion sort over an array of rows, each a small object with a vtable: the row's data at `+4`, descending at `+8`, the column at `+0x0C`. Three kinds of row, chosen by the list's `+0x3344`, each with its own array and its own two comparisons:
+
+| Kind (`+0x3344`) | Rows | "Before" / "different" |
+|---|---|---|
+| 0 to 2 | `+0x334C`, count `+0x3350`, `0x10` bytes, vtable `0xA76950` | slots 0 and 1 (`0x8BC3C0`, `0x8BCFD0`) |
+| 3, 4 | `+0x3354`, count `+0x3358`, `0x14` bytes, vtable `0xAADE88` | slots 2 and 3 (`0x8BBD90`, `0x8BC960`) |
+| 5 | `+0x335C`, count `+0x3360`, `0x10` bytes, vtable `0xAADE98` | slots 2 and 3 (`0x8BC170`, `0x8BCD70`) |
+
+The scroll bars call VA `0x8C93C0` (from the *Jóvenes promesas* handlers at `0x451F60` and `0x451F80`), which sets the first row shown and calls the sort with 1, so **every scroll sorts the list again**. Traced: the *Jóvenes promesas* list is kind 0.
+
+**Cause:** "before" compares the column's values and, for descending, returns the opposite: "not less than", which is true for equal values too. The sort takes each row that should go before the one above it and finds its place with a binary search that stops at the first row whose values are equal ("different" is false) and puts the row in front of it. In descending order, two equal neighbours always count as out of order, the search always ends up comparing the row with an equal one, and the two swap, on every sort. As the scroll moves the view by one row and the swap moves the row back by one, the row seems to stay in place. Traced: each scroll of a 20-row list sorted descending moved the same 9 rows of an already sorted list. Whether it shows depends on which column, which direction and whether that column has equal values on screen.
+
+**Fix:** the binary search no longer stops at an equal row: the conditional jump after "different" becomes two `nop`s in each of the three loops (VA `0x8BE783`, `0x8BE8C4`, `0x8BE9EF`). The search then places a row after the rows equal to it in descending order (before them in ascending order, where equal rows never count as out of order), so a sorted list stays as it is and a row that does need to move still goes to the right place. "Different" is still called, and does nothing else. Every list of this class gets the fix. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
 ### Youth player offered a salary of 0
 
