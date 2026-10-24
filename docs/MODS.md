@@ -26,6 +26,7 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | `banderas-de-todos-los-jugadores` | *Banderas de todos los jugadores* | Player lists show every player's flag, not only the foreign players' |
 | `pais-de-nacimiento-para-todos` | *País de nacimiento para todos* | Every player born outside his nationality's country is domestic, not foreign, in both countries: his nationality's and his country of birth's, as the nationalised ones already were |
 | `bandera-del-pais-de-nacimiento` | *Bandera del país de nacimiento* | Players' flags show their country of birth when the game knows it, instead of their nationality |
+| `juveniles-entrenando-sin-limite` | *Juveniles entrenando sin límite* | Any number of youth players can train at once, not only 1 to 4 depending on the youth coach |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -141,6 +142,16 @@ Each run was `90` × 15, after a `ret` and before the next function, and nothing
 The fifteenth place of the flags mod (`0x51AF17`) draws a nationality from a list, not a player's, and keeps it. On its own, without the other two mods, this one changes only the flags the game already shows: those of foreign players.
 
 Tested in steps, with Inter: with `banderas-de-todos-los-jugadores` only, every player showed his nationality's flag (Zanetti Italy, Davids Netherlands); adding this mod, Zanetti (marked nationalised) showed Argentina and Davids still the Netherlands; adding `pais-de-nacimiento-para-todos` and starting a new game, Davids and Seedorf showed Suriname.
+
+### `juveniles-entrenando-sin-limite`
+
+In *Jóvenes promesas*, the *Entrenando* button turns a youth player's training on only while fewer players are training than the youth coach can take: 1 to 4, depending on his quality ([GAME-INTERNALS.md](GAME-INTERNALS.md#youth-training)). Otherwise it shows *"No puedes entrenar a más jugadores"*. The mod removes that check, the only place the game applies the limit. A youth coach is still needed, firing him still stops everyone's training, and the weekly update still ends each player's training when the game decides.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x51D48` | `73 23` (`jae 0x451D6D`, the message) | `90 90` |
+
+Tested: with more youth players training than the coach's limit, no message, and after a few weeks all of them had trained.
 
 ## How it works
 
