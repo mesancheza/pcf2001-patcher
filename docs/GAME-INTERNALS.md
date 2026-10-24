@@ -406,6 +406,23 @@ What the game keeps of a player's countries, which the mods `pais-de-nacimiento-
 
 **What uses the country of birth:** the foreign test (`0x4B1C90`): a player is foreign only if his nationality and his country of birth both are. So a nationalised player counts as from both countries.
 
+### Youth training
+
+How many youth players can train at once, which the mod `juveniles-entrenando-sin-limite` changes ([MODS.md](MODS.md#juveniles-entrenando-sin-limite)).
+
+A youth player trains while his byte `+0x101` is set. The *Entrenando* button of *Jóvenes promesas* (in `0x451B40`, the handler of the youth list) needs a youth coach (employee job 8, `0x49F730`): it turns training off, or on while the number of youth players training (`0x49F700`, counting `+0x101` over the youth squad) is below the coach's capacity (`0x49F6E0`); otherwise it shows `TX_NOMASENTRENAMIENTOS`, *"No puedes entrenar a más jugadores"* (VA `0x451D6D`).
+
+**The capacity** comes from `0x4C8900`, which gives every kind of employee a number from his job (byte 0) and his quality (byte 1). For the youth coach (job 8, `0x4C89A5`):
+
+| Quality | Youth players training |
+|---|---|
+| 0–2 | 1 |
+| 3–6 | 2 |
+| 7–8 | 3 |
+| 9–10 | 4 |
+
+**Nothing else applies it:** the count and the capacity are used only by the button. Firing the youth coach (`0x49FA70`, job 8) stops everyone's training (`0x49FA30`), and the weekly update (`0x49EABE`) stops a player's training on a condition of his own (`0x4AF980`), with message `0x401`; neither looks at the capacity, so a worse coach doesn't stop anyone's training either.
+
 ### Youth player offered a salary of 0
 
 **Symptom:** offering a contract to a youth player (*Juveniles*; seen with a 16-year-old whose current salary was 1 million, Fidelis Andria, Serie C1) starts the salary at 0. Seen with the patch; not yet known whether the original game did the same.

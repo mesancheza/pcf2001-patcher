@@ -142,6 +142,14 @@ const std::vector<Mod> kMods = {
       {0x124860, {0x33, 0xC0, 0x8A, 0x42, 0x61}, {0xE8, 0xAC, 0x21, 0xF9, 0xFF}},  // 0x524860 -> 0x4B6A11
       {0x12695D, {0x33, 0xD2, 0x8A, 0x53, 0x61}, {0xE8, 0xDF, 0x00, 0xF9, 0xFF}},  // 0x52695D -> 0x4B6A41
       {0x3DF119, {0x33, 0xD2, 0x8A, 0x50, 0x61}, {0xE8, 0x63, 0x82, 0xCD, 0xFF}}}},  // 0x7DF119 -> 0x4B7381
+    // Youth players training without limit: the Entrenando button of Jóvenes promesas (0x451B40) turns a player's
+    // training on only while fewer players train (0x49F700) than the youth coach's capacity (0x49F6E0: 1 to 4 by
+    // his quality), and shows "No puedes entrenar a más jugadores" otherwise. Nothing else checks the capacity.
+    {L"juveniles-entrenando-sin-limite", L"Juveniles entrenando sin límite",
+     L"El entrenador de juveniles puede entrenar a todos los jóvenes promesas a la vez, no solo a entre 1 y 4 según su "
+     L"calidad. Sigue haciendo falta tener entrenador de juveniles.",
+     L"manager.exe",
+     {{0x51D48, {0x73, 0x23}, {0x90, 0x90}}}},  // jae 0x451D6D (the message) -> nops
 };
 
 bool Matches(const std::vector<uint8_t>& bytes, size_t offset, const std::vector<uint8_t>& expected)
