@@ -433,6 +433,21 @@ The game asks `+0x9C` in nine places, all on a club's competition:
 | `0x49B27F` | The club's processing in `0x49B240` keeps the numbers |
 | `0x49B8F7`, `0x49C4B4`, `0x4AC848` | Which messages the club gets (`0x489`, `0x47F`; without: `0x485`), not identified yet |
 
+### Substitutes
+
+How many substitutes a club can name, which the mod `siete-suplentes-en-todas-las-competiciones` changes ([MODS.md](MODS.md#siete-suplentes-en-todas-las-competiciones)).
+
+**The match decides,** not the competition's class: a match object has the bench size at `+0x24` (and the home team's ID at `+0x3E`, the two sides' line-up data at `+0x28` and `+0x30`). The context's current match is at `+0x74`, null when there is none.
+
+| VA | What it does |
+|---|---|
+| `0x41CA64` | The line-up screen's bench: the current match's `+0x24`, or 0 without one, and never more than the squad minus 11. Kept at the screen's `+0x2C90`; the *NO CONVOCADOS* header shows only when the squad has more players than 11 plus that |
+| `0x49391C` | The automatic line-up's bench: the current match's `+0x24`, or 5 without one |
+| `0x6083B0` | Sets up or plays a match (157 calls) |
+| `0x607A20` | Copies a match's fields from another (the copy constructor sets `+0x24` to 5 at `0x6079ED`, then calls this) |
+
+New matches start with 7: 87 other places store 7 at a `+0x24` with no call to `0x6083B0` nearby, and the four checked are inlined match constructors (`0x408D8F`, `0x53320F`, `0x588176`, `0x62AB0F`); none stores another value. In 23 places, all in the competitions' code (`0x533AE6` to `0x67EB03`), a competition then sets it to 5, with a `mov dword ptr [reg+24h],5` a few instructions before calling `0x6083B0`; 25 others set 7 the same way. No other value is ever stored there. Which competitions the 23 belong to isn't identified.
+
 ### Flags in player lists
 
 How player lists decide whether to show a player's flag, which the mod `banderas-de-todos-los-jugadores` changes ([MODS.md](MODS.md#banderas-de-todos-los-jugadores)).
