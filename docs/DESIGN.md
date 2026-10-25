@@ -136,20 +136,23 @@ The patch is first tested by its developers on their own machines, then by membe
 
 ### D13. A memory compatibility layer, while the game's memory bugs are found and fixed
 
-The game uses memory after freeing it, in many places (see [GAME-INTERNALS.md](GAME-INTERNALS.md#memory-bugs)). This causes the garbled and misassigned names and the random "La aplicación no puede continuar" crashes. The new backend includes a layer that makes the game's frees safe:
+The game uses memory after freeing it, in many places (see [GAME-INTERNALS.md](GAME-INTERNALS.md#memory-bugs)). This causes the garbled and misassigned names and the random "La aplicación no puede continuar" crashes. The new backend includes a layer that makes the game's frees safe. **Its quarantine is now off by default** (below); the fix for shrunk buffers stays on.
 
-- Freed blocks go into a **quarantine** instead of back to Windows, so stale reads still find the old data. The quarantine is first in, first out and limited in size (192 MB by default). The oldest blocks are released first.
+- Freed blocks go into a **quarantine** instead of back to Windows, so stale reads still find the old data. The quarantine is first in, first out and limited in size. The oldest blocks are released first. Off by default; `quarantine_mb` turns it on for testing ([TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnostic-mode)).
 - Before a block leaves the quarantine, the layer checks whether it changed since it was freed. **Blocks the game still writes to are never released**, because those writes would corrupt whatever reuses the memory, or the heap itself.
 - Freeing a block twice is ignored.
 - **Shrinking a block never moves it**, as on Windows XP. The game keeps pointers into the middle of buffers it shrinks; this alone fixes the garbled team names ([GAME-INTERNALS.md](GAME-INTERNALS.md#found-pointers-into-buffers-that-get-shrunk)).
 - Growing a block keeps it in place when possible, as Windows does. When it has to move, the old block goes into the quarantine like a free.
-- It works by redirecting `HeapFree` and `HeapReAlloc` in the import tables of the game's modules and of the C runtime they use.
+- **Under memory pressure the quarantine gives its memory back.** When an allocation or a surface fails, the quarantine is emptied and the allocation is retried. When the address space itself runs short (less than 256 MB free, or no free block of 64 MB), the quarantine is emptied and its limit halved for the rest of the session, down to 16 MB. The game running out of memory is worse than a stale read the quarantine would have covered.
+- It works by redirecting `HeapAlloc`, `HeapFree` and `HeapReAlloc` in the import tables of the game's modules and of the C runtime they use. The same hooks count the blocks the game holds, for the log (D14).
 
 **Why a layer first:** the game has many of these bugs, and each needs to be found in the code and patched at its cause (D8). The layer makes the game playable right away, and the bugs found with its diagnostics (D14) get fixed in the code one by one. Each code fix reduces how much the layer has to do.
 
+**Why the quarantine is off now:** once shrunk blocks stopped moving, nothing showed it was still needed. Over 6 hours with Windows' page heap, which stops the game at any access to freed memory, found only one stale access, at exit ([GAME-INTERNALS.md](GAME-INTERNALS.md#found-the-main-window-checks-a-freed-api-object-at-exit), fixed in `gfxwin.dll`), and normal play without the quarantine showed no errors. With it, millions of freed blocks were released without one written to afterwards. Meanwhile it cost up to 204 MB of address space, which the heap kept after it filled, and a checksum of every freed byte. The proper end state is no layer at all: the loaders that keep pointers into the buffers they shrink fixed in the game's code, one by one.
+
 **Why not the Windows XP compatibility mode:** it isn't standalone (D4) and it makes the game ask for administrator rights.
 
-**Limits:** the game is a 32-bit program without large-address support, so it has 2 GB of address space, and the quarantine uses part of it. A stale pointer that outlives the quarantine still reads reused memory, so the layer postpones these bugs rather than removing them.
+**Limits:** the game is a 32-bit program without large-address support, so it has 2 GB of address space, and the quarantine, when on, uses part of it ([GAME-INTERNALS.md](GAME-INTERNALS.md#address-space) has what else does). A stale pointer that outlives the quarantine still reads reused memory, so the layer postpones these bugs rather than removing them.
 
 **Alternatives considered:**
 
@@ -161,11 +164,11 @@ The game uses memory after freeing it, in many places (see [GAME-INTERNALS.md](G
 
 ### D14. A log players can send
 
-The new backend writes `dcogl.log` next to the game, and keeps the previous session's log as `dcogl.old.log`. Players who report a problem attach both. The log starts with what the player is running: patch version, Windows version, screen and graphics card, the game version, and the size and checksum of the game's files and of the database files. After that it records setup, faults (with the module and offset), the game's own error exceptions, and memory statistics every 30 seconds.
+The new backend writes `dcogl.log` next to the game, and keeps the previous session's log as `dcogl.old.log`. Players who report a problem attach both. The log starts with what the player is running: patch version, Windows version, screen and graphics card, the game version, and the size and checksum of the game's files and of the database files. After that it records setup, faults (with the module and offset), the game's own error exceptions, and memory statistics every 30 seconds: what the game holds on the heap, the quarantine, and the address space by kind of use, so a long session's log shows whether anything keeps growing.
 
 - **Small:** a few kilobytes per hour of play, capped at 4 MB per session.
 - **Private:** nothing that identifies the player. In particular no full paths, which usually contain the Windows user name. It is never sent anywhere automatically (D11).
-- **Diagnostic mode:** `diagnose=1` in the `[memory]` section of `dcogl.ini` also records which code freed each block the game keeps writing to. It's off by default because it costs memory and speed.
+- **Diagnostic mode:** `diagnose=1` in the `[memory]` section of `dcogl.ini` also records which code freed each block the game keeps writing to, and `allocation_sites=1` which code allocated the memory that grows. They're off by default because they cost memory and speed.
 
 ### D15. Our own game installer
 
