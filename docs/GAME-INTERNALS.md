@@ -134,6 +134,46 @@ On Windows XP, shrinking a heap block always happened in place, so the interior 
 
 **Fix:** the memory layer never moves a block when the game shrinks it, as on Windows XP ([DESIGN.md D13](DESIGN.md#d13-a-memory-compatibility-layer-while-the-games-memory-bugs-are-found-and-fixed)). The only cost is the unused tail of each shrunk buffer.
 
+### Found: a surface that can't be created crashes the game
+
+`CGFXSurface::Create` (`gfxwin.dll`, VA `0x100667F0`) asks the backend for a surface (slot 22, `+0x58`). Only when it gets one does it store the device in the surface object (`+0x38`), next to the backend's handle for the surface (`+0x30`). Otherwise it returns false and leaves both null. The game doesn't check that result, and the surface's next `Lock` (`0x100675E0`) or `DrawBitmap` (`0x10068090`) calls a method through the null device pointer. So when memory runs out, the first surface that can't be created crashes the game, with an access violation reading address 0 at `gfxwin.dll+0x675F6` or `+0x68240`. *"La aplicación no puede continuar"* then shows as an empty box, because there's no memory left to draw its text.
+
+Seen twice in testing, both times with Windows' page heap on, which multiplies the address space every allocation takes ([Address space](#address-space)). The cause to fix is running out of memory, not this missing check: a game that can't create its surfaces can't go on anyway. The new backend retries a failed surface once, after the memory layer's quarantine gives its memory back ([DESIGN.md D13](DESIGN.md#d13-a-memory-compatibility-layer-while-the-games-memory-bugs-are-found-and-fixed)).
+
+### Found: the main window checks a freed API object at exit
+
+Found with Windows' page heap and no quarantine, while the game quit (`gfxwin.dll`):
+
+1. `CGFXMainWindow::~CGFXMainWindow` (VA `0x10059350`) calls `CGFXMainWindow::End` (`0x100590B0`), which deletes every `CGFX_API` object in `m_lstAPIs` (`0x1005918C`: destructor, then `operator delete`). It doesn't clear `CGFXMainWindow::m_pApiActual` (`0x10111130`), which points at one of them.
+2. The destructor then runs the base class's, `CGFXDialog::~CGFXDialog` (`0x1004EDD0`). It calls `CGFXMainWindow::ValidAPI` (`0x1005AA50`), and that calls `CGFX_API::Valid` (`0x10047510`) on `m_pApiActual`. That reads the freed object's `+0x60` and `+0x5C`.
+3. If those stale values look valid, `~CGFXDialog` goes on to release the dialog's object at `+0x154` through its method table.
+
+On the normal heap the freed object usually still holds its old contents at that moment, so this goes unnoticed. It's a use-after-free in the same shutdown sequence as the [crash on exit](#crash-on-exit). **Fix:** where `End` clears its list, it now clears `m_pApiActual` too ([PATCHER.md](PATCHER.md#the-changes-to-gfxwindll)). With the fix, quitting under page heap no longer faults.
+
+## Address space
+
+`manager.exe` isn't marked *large address aware*, so the game has 2 GB of address space, even on 64-bit Windows. Running out of it is what crashes the game, not running out of RAM: Task Manager's memory column shows only what the game is using, while reserved ranges, mapped files and the gaps between them count against the 2 GB too.
+
+Measured with the backend's memory reports at the main menu, before and after the backend creates its Direct3D 11 device, on an NVIDIA GeForce RTX 3060 Laptop GPU:
+
+| | Before Direct3D | Direct3D 11 on the graphics card | Direct3D 11 in software (WARP) |
+|---|---|---|---|
+| Free | 1,829 MB | 1,556 MB | 1,820 MB |
+| Largest free block | 1,425 MB | 1,090 MB | 1,415 MB |
+| Program images (DLLs) | 67 MB | 202 MB | 74 MB |
+| Private memory, reserved / in use | 120 / 31 MB | 257 / 36 MB | 120 / 39 MB |
+
+- **The graphics driver** takes about 270 MB: its DLLs, and ranges it reserves for itself. They stay until the game exits. Creating the device single-threaded, or without the driver's worker threads, makes no difference (measured outside the game).
+- **Surfaces:** each surface's pixels are a separate mapping, rounded up to 64 KB of address space. At the main menu, 485 surfaces hold 13 MB of pixels in 35 MB of address space.
+- **The memory layer's quarantine**, off by default now, held up to 192 MB of freed blocks, plus 12 MB for its bookkeeping ([DESIGN.md D13](DESIGN.md#d13-a-memory-compatibility-layer-while-the-games-memory-bugs-are-found-and-fixed)).
+- **Windows' page heap**, a test setting ([TOOLS.md](TOOLS.md#windows-page-heap)), gives every block at least two pages of its own: 8 KB of address space even for a block of a few bytes. In a career the game holds about 150,000 blocks, so under page heap they alone take over 1 GB, and the quarantine's blocks more. Page heap sessions in testing ran out of address space after 1.5 and 3 hours. Both crashes with an empty message box ([above](#found-a-surface-that-cant-be-created-crashes-the-game)) were these. None has been seen with page heap off.
+
+**What grows during play.** Measured with the log's memory reports and `allocation_sites=1` ([TOOLS.md](TOOLS.md#the-patchs-own-log-and-diagnostic-mode)), over one season of normal play and three more under page heap:
+
+- **The game's heap cycles with the seasons.** It holds about 104,000 blocks (24 MB) at the start of a season, climbs to about 145,000 (26 MB) as the season's data piles up, and falls back when the next one starts. The main grower is the code at `manager.exe` `0x6090BF`, with blocks of about 60 bytes. Under the cycle, about 0.5 MB more stays each season, probably the career's history. This is why page heap sessions run out: each of those small blocks takes 8 KB there.
+- **The quarantine was the largest variable consumer:** filling it to 192 MB made the heap add ten 16 MB segments, which it keeps.
+- **Surfaces kept climbing across seasons:** 395, 677 and 808 alive at the start of three successive seasons, now about 63 MB of address space. Whether that's images the game caches or surfaces it never frees is open. `allocation_sites=1` also lists, every 5 minutes, which code created the surfaces that grew.
+
 ## Text drawing reads outside its glyph image
 
 `Utils.dll` blends text into 32-bit surfaces with an 8-bit glyph mask (the function at RVA `0x25FE0`). For each row it reads the mask byte **before** checking whether the position is inside the mask, so it reads one byte before the mask's pixels. With the original backends, surface pixels were heap memory, where that byte is always readable. Memory that starts exactly at a page boundary may have nothing mapped before it, and then the game faults. The new backend allocates every surface's pixels with 4 KB of spare memory before and after them.
@@ -166,6 +206,22 @@ In full screen, `CGFXMainWindow::ResetMode` (`gfxwin.dll`) makes the game window
 This is a use-after-free: an ordering bug in the game's shutdown. It may have gone unnoticed on older Windows, where freed memory often kept its old contents for a while; that part is unconfirmed.
 
 **Fix:** the new backend handles this in its own code, without changing the game's files. It keeps destroyed devices' objects valid until the process ends, and their methods do nothing once the device is shut down.
+
+## The player menu's animation
+
+**Symptom:** right-clicking a player's row opens a pop-up menu (the `TX_EMERGENTE_*` texts of `GFXButtonJugador.cpp`: *Ver ficha* and the rest) that unrolls and then fades in, taking close to a second; the fade flickers.
+
+**How it opens:** the right-click handler adds the options (VA `0x956840`, one call each), sets the menu's direction flag (`0xB48F3C`) and the options' text level (the word at `0xBCD040`, read by the options' drawing code) to 0, and calls the menu's open function (VA `0x956510`). That lays out its items: the header (item 0) at the click, the options (items 1 to n−2) one 16-pixel row each, upwards if there's room above, and the bottom edge (item n−1) right below the header, where the first option goes. The options are disabled (`CGFXWindow::Enable(false, true)`). Then three timers of the menu, handled at VA `0x954137`:
+
+| Timer | Interval | What each step does |
+|---|---|---|
+| `0x1A22` | 5 ms | Moves the bottom edge 8 pixels (the counter at `+0x1A0`). Past (n−2)×16 pixels it stops, enables the options and starts `0x1A23`. |
+| `0x1A23` | 5 ms | Raises the text level by 14 and redraws the options. At 255 it stops and starts `0x1A24`. |
+| `0x1A24` | 50 ms | Not an animation: closes the menu when the mouse leaves it, and runs the option clicked. |
+
+Windows runs these timers at the system timer's tick (usually about 15.6 ms), not every 5 ms, so a menu of 17 options takes about 30 steps to unroll and 19 to fade in.
+
+**Change** (not a bug fix): the open function lays out the bottom edge like an option row, the last one, which is where the slide would leave it (`jne` → `jmp` at VA `0x95664C`), and the jumps to each animation's next step become `nop`s (VA `0x954196` and `0x9542E6`), so both end on their first step, with the menu as the animations would have left it. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). Tested in play: the fade and its flicker are gone, but the menu still seems to unroll, which none of the menu's code explains any more (nothing else reads `+0x1A0`); unconfirmed whether it's the options being enabled and redrawn one at a time.
 
 ## Bugs reported in the original game
 
@@ -376,6 +432,21 @@ The game asks `+0x9C` in nine places, all on a club's competition:
 | `0x493A2E`, `0x4940AC`, `0x49D42A` | After a line-up is set, the numbers stay (without: `0x4BED50`) |
 | `0x49B27F` | The club's processing in `0x49B240` keeps the numbers |
 | `0x49B8F7`, `0x49C4B4`, `0x4AC848` | Which messages the club gets (`0x489`, `0x47F`; without: `0x485`), not identified yet |
+
+### Substitutes
+
+How many substitutes a club can name, which the mod `siete-suplentes-en-todas-las-competiciones` changes ([MODS.md](MODS.md#siete-suplentes-en-todas-las-competiciones)).
+
+**The match decides,** not the competition's class: a match object has the bench size at `+0x24` (and the home team's ID at `+0x3E`, the two sides' line-up data at `+0x28` and `+0x30`). The context's current match is at `+0x74`, null when there is none.
+
+| VA | What it does |
+|---|---|
+| `0x41CA64` | The line-up screen's bench: the current match's `+0x24`, or 0 without one, and never more than the squad minus 11. Kept at the screen's `+0x2C90`; the *NO CONVOCADOS* header shows only when the squad has more players than 11 plus that |
+| `0x49391C` | The automatic line-up's bench: the current match's `+0x24`, or 5 without one |
+| `0x6083B0` | Sets up or plays a match (157 calls) |
+| `0x607A20` | Copies a match's fields from another (the copy constructor sets `+0x24` to 5 at `0x6079ED`, then calls this) |
+
+New matches start with 7: 87 other places store 7 at a `+0x24` with no call to `0x6083B0` nearby, and the four checked are inlined match constructors (`0x408D8F`, `0x53320F`, `0x588176`, `0x62AB0F`); none stores another value. In 23 places, all in the competitions' code (`0x533AE6` to `0x67EB03`), a competition then sets it to 5, with a `mov dword ptr [reg+24h],5` a few instructions before calling `0x6083B0`; 25 others set 7 the same way. No other value is ever stored there. Which competitions the 23 belong to isn't identified.
 
 ### Flags in player lists
 
