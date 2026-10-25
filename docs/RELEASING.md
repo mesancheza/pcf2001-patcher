@@ -27,8 +27,8 @@ Closing a pull request without merging it does nothing.
 | File | Contents |
 |---|---|
 | `pcf2001-patch-<version>-win32.zip` | Everything `cmake --install` installs: `pcf2001-setup.exe` (the game installer), `pcf2001-patch.exe` (the patcher, with the new graphics component `dcogl.dll` inside), `pcf2001-mods.exe` (the optional mods tool), `README.md`, `LEEME.md` and `LICENSE`. Development tools are never installed. |
-| `pcf2001-patcher-<version>-source.zip`, `pcf2001-patcher-<version>-source.tar.gz` | The source code of the merged commit, in a folder named after the version. |
-| `SHA256SUMS.txt` | SHA-256 hashes of the files above, and of every file inside the patch `.zip`. |
+| `SHA256SUMS.txt` | SHA-256 hashes of the patch `.zip` and of every file inside it. |
+| *Source code* (`.zip` and `.tar.gz`) | Added by GitHub to every release, from the tag, which points at the merged commit. The workflow doesn't upload its own: they would be duplicates. GitHub doesn't guarantee these archives stay byte for byte the same, so they have no hash in `SHA256SUMS.txt`; `git checkout v<version>` gets the exact source. |
 
 The release notes list the toolchain the runner used (MSVC, Windows SDK and CMake versions) and the commands to rebuild the release, so anyone can check the published files ([BUILDING.md](BUILDING.md#comparing-your-build-with-a-release)).
 
