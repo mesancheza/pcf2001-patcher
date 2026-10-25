@@ -1,9 +1,9 @@
 # Builds a release when a pull request is merged into a release branch, named release/<version> (e.g. release/0.1.0 or
 # release/v0.1.0).
 # Creates a DRAFT GitHub release v<version> with:
-#   - the source code, as .zip and as .tar.gz;
 #   - the patch's files for players (whatever `cmake --install` installs), as a .zip;
-#   - SHA-256 hashes of all of the above and of every file inside the patch .zip.
+#   - SHA-256 hashes of the .zip and of every file inside it.
+# GitHub itself adds the source code of the tag, as .zip and .tar.gz, to every release.
 # Someone reviews the draft and publishes it by hand. See docs/RELEASING.md.
 
 name: Release
@@ -57,15 +57,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $source = "pcf2001-patcher-$env:VERSION"
           $patch = "pcf2001-patch-$env:VERSION-win32"
           New-Item -ItemType Directory dist, staging | Out-Null
-
-          # Source code exactly as committed, in a folder named after the version.
-          git archive --format=zip --prefix="$source/" -o "dist/$source-source.zip" $env:COMMIT
-          if ($LASTEXITCODE) { throw 'git archive (zip) failed' }
-          git archive --format=tar.gz --prefix="$source/" -o "dist/$source-source.tar.gz" $env:COMMIT
-          if ($LASTEXITCODE) { throw 'git archive (tar.gz) failed' }
 
           # The files players get.
           cmake --install build/Release --prefix "staging/$patch"
@@ -101,8 +94,8 @@ jobs:
           **Files**
 
           - ``$patch.zip``: the patch.
-          - ``$source-source.zip`` and ``$source-source.tar.gz``: the source code of this release.
-          - ``SHA256SUMS.txt``: SHA-256 hashes of the files above and of every file inside the patch.
+          - ``SHA256SUMS.txt``: SHA-256 hashes of the patch and of every file inside it.
+          - *Source code*, added by GitHub: the source code of this release.
 
           No Dinamic files are included. The patch only works on top of your own copy of PC FÚTBOL 2001 v3.6.
 
