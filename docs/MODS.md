@@ -27,6 +27,7 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | `pais-de-nacimiento-para-todos` | *País de nacimiento para todos* | Every player born outside his nationality's country is domestic, not foreign, in both countries: his nationality's and his country of birth's, as the nationalised ones already were |
 | `bandera-del-pais-de-nacimiento` | *Bandera del país de nacimiento* | Players' flags show their country of birth when the game knows it, instead of their nationality |
 | `juveniles-entrenando-sin-limite` | *Juveniles entrenando sin límite* | Any number of youth players can train at once, not only 1 to 4 depending on the youth coach |
+| `siete-suplentes-en-todas-las-competiciones` | *Siete suplentes en todas las competiciones* | Every competition allows seven substitutes on the bench, not only some, for every club, automatic line-ups included |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -152,6 +153,17 @@ In *Jóvenes promesas*, the *Entrenando* button turns a youth player's training 
 | `manager.exe` | `0x51D48` | `73 23` (`jae 0x451D6D`, the message) | `90 90` |
 
 Tested: with more youth players training than the coach's limit, no message, and after a few weeks all of them had trained.
+
+### `siete-suplentes-en-todas-las-competiciones`
+
+A match's bench size is a field of the match, which new matches start with as 7; some competitions set it to 5 just before the match is played ([GAME-INTERNALS.md](GAME-INTERNALS.md#substitutes)). The mod makes those 23 places set 7, and the automatic line-up use 7 when there's no current match (it used 5). The line-up screen still shows fewer substitutes when the squad has fewer than 18 players.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0x133AE6`, `0x1389DA`, `0x140EC4`, `0x14138D`, `0x141C02`, `0x141D01`, `0x14202A`, `0x1426B7`, `0x14F77E`, `0x14FF43`, `0x15A484`, `0x15A94D`, `0x15B1CF`, `0x15B2CE`, `0x15B5F9`, `0x15BC97`, `0x165786`, `0x165C63`, `0x16650F`, `0x16660F`, `0x166945`, `0x27D710`, `0x27EB03` | `C7 4x 24 05 00 00 00` (`mov dword ptr [reg+24h],5`) | `C7 4x 24 07 00 00 00` |
+| | `0x93921` | `B8 05 00 00 00` (`mov eax,5`) | `B8 07 00 00 00` |
+
+Tested in play: the line-up's bench showed seven substitutes.
 
 ## How it works
 
