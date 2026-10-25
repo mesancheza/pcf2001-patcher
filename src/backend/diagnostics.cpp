@@ -1,8 +1,11 @@
 #include "diagnostics.h"
 
 #include "backend_log.h"
+#include "memory_compat.h"
+#include "surface.h"
 
 #include <dbghelp.h>
+#include <psapi.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +29,10 @@ char g_folder[MAX_PATH];  // this DLL's folder, the game's, with a trailing back
 // catches its faults and shows "La aplicación no puede continuar", so Windows never writes one.
 LONG g_dumpsAllowed;
 volatile LONG g_dumpsWritten;
+// [diagnostics] memory_map = N: every N memory reports (one every 30 s of play), a list of every region of the address
+// space in dcogl-memory-NNN.tsv, to see what grows over a long session.
+LONG g_memoryMapEvery;
+LONG g_memoryReports;
 
 struct DumpRequest
 {
@@ -227,10 +234,101 @@ void InstallDiagnostics(HMODULE self)
     g_dumpsAllowed = static_cast<LONG>(GetPrivateProfileIntA("diagnostics", "dump_on_fault", 0, ini));
     if (g_dumpsAllowed > 0)
         BackendLog("diagnostics: a full memory dump for each of the first %ld faults in the game's code\n", g_dumpsAllowed);
+    g_memoryMapEvery = static_cast<LONG>(GetPrivateProfileIntA("diagnostics", "memory_map", 0, ini));
+    if (g_memoryMapEvery > 0)
+        BackendLog("diagnostics: a map of the address space every %ld memory reports\n", g_memoryMapEvery);
     AddVectoredExceptionHandler(1, OnException);
 }
 
 void LogProcessExit(bool processTerminating)
 {
     BackendLog("%s\n", processTerminating ? "process exiting" : "backend unloaded");
+}
+
+void LogProcessMemory()
+{
+    // A walk over the address space: a few thousand regions, a few milliseconds. Allocations (regions sharing an
+    // allocation base) are counted by kind: program images, mapped sections (files, or anonymous like the surfaces'
+    // pixels), and private memory (heaps, and what Direct3D and the graphics driver reserve).
+    SYSTEM_INFO system;
+    GetSystemInfo(&system);
+    uintptr_t address = reinterpret_cast<uintptr_t>(system.lpMinimumApplicationAddress);
+    const uintptr_t end = reinterpret_cast<uintptr_t>(system.lpMaximumApplicationAddress);
+    uint64_t free = 0, largestFree = 0, image = 0, mapped = 0, privateReserved = 0, privateCommitted = 0;
+    unsigned mappedCount = 0, privateCount = 0;
+    const void* allocation = nullptr;
+    MEMORY_BASIC_INFORMATION region;
+    FILE* map = nullptr;
+    if (g_memoryMapEvery && ++g_memoryReports % g_memoryMapEvery == 0)
+    {
+        char path[MAX_PATH];
+        _snprintf_s(path, sizeof path, _TRUNCATE, "%sdcogl-memory-%03ld.tsv", g_folder, g_memoryReports / g_memoryMapEvery);
+        if (fopen_s(&map, path, "w") == 0 && map)
+            fprintf(map, "allocation\tregion\tsize_kb\tstate\ttype\tname\n");
+    }
+    while (address < end && VirtualQuery(reinterpret_cast<void*>(address), &region, sizeof region))
+    {
+        const bool first = region.State != MEM_FREE && region.AllocationBase != allocation;
+        if (region.State == MEM_FREE)
+        {
+            free += region.RegionSize;
+            largestFree = region.RegionSize > largestFree ? region.RegionSize : largestFree;
+        }
+        else if (region.Type == MEM_IMAGE)
+            image += region.RegionSize;
+        else if (region.Type == MEM_MAPPED)
+        {
+            mapped += region.RegionSize;
+            mappedCount += first;
+        }
+        else
+        {
+            privateReserved += region.RegionSize;
+            privateCommitted += region.State == MEM_COMMIT ? region.RegionSize : 0;
+            privateCount += first;
+        }
+        if (map && region.State != MEM_FREE)
+        {
+            char name[MAX_PATH] = "";
+            if (first && region.Type != MEM_PRIVATE)
+            {
+                char full[MAX_PATH];
+                if (GetMappedFileNameA(GetCurrentProcess(), region.AllocationBase, full, MAX_PATH))
+                {
+                    const char* slash = strrchr(full, '\\');
+                    strcpy_s(name, slash ? slash + 1 : full);
+                }
+            }
+            fprintf(map, "%p\t%p\t%Iu\t%s\t%s\t%s\n", region.AllocationBase, region.BaseAddress, region.RegionSize / 1024,
+                    region.State == MEM_COMMIT ? "commit" : "reserve",
+                    region.Type == MEM_IMAGE ? "image" : region.Type == MEM_MAPPED ? "mapped" : "private", name);
+        }
+        if (region.State != MEM_FREE)
+            allocation = region.AllocationBase;
+        const uintptr_t next = reinterpret_cast<uintptr_t>(region.BaseAddress) + region.RegionSize;
+        if (next <= address)
+            break;
+        address = next;
+    }
+    if (map)
+        fclose(map);
+    NoteAddressSpace(free, largestFree);
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof counters);
+    const SurfaceStats surfaces = GetSurfaceStats();
+    DWORD handles = 0;
+    GetProcessHandleCount(GetCurrentProcess(), &handles);
+    constexpr double kMB = 1024.0 * 1024.0;
+    BackendLog("memory: address space %.0f MB free, largest free block %.1f MB; images %.0f MB, mapped %.0f MB (%u), private "
+               "%.0f MB reserved (%u) of which %.0f MB in use; %.0f MB private bytes; %ld surfaces (%.1f MB of pixels, %.1f "
+               "MB of address space; %ld with a GDI context); %lu GDI objects, %lu USER objects, %lu handles\n",
+               free / kMB, largestFree / kMB, image / kMB, mapped / kMB, mappedCount, privateReserved / kMB, privateCount,
+               privateCommitted / kMB, counters.PrivateUsage / kMB, surfaces.surfaces, surfaces.pixelBytes / kMB,
+               surfaces.viewBytes / kMB, surfaces.withDC, GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS),
+               GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS), handles);
+    // With [memory] allocation_sites, the surfaces' creators too: every 10 reports (5 minutes) those that grew, every
+    // 60 also those holding the most.
+    static LONG siteReports;
+    if (AllocationSitesEnabled() && ++siteReports % 10 == 0)
+        LogSurfaceSites(siteReports % 60 == 0);
 }

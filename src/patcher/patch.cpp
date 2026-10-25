@@ -44,15 +44,30 @@ struct PatchedFile
 const PatchedFile kPatchedFiles[] = {
     // The default graphics backend, an index into gfxwin.dll's list of backend names (dcsf, dcsfx, dcd3d, dcogl):
     // from 1 (dcsfx.dll, which fails on modern Windows) to 3 (dcogl.dll, the new component).
-    {kGameFiles[1], "bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5",
-     L"default graphics backend changed to dcogl.dll",
-     {{0xFE960, {0x01}, {0x03}}}},
+    {kGameFiles[1], "5f1dcc3cc690ac864f53971efb980c19d355c0c7a13bd2bbd59779cc4b1fbc41",
+     L"default graphics backend changed to dcogl.dll, freed API object read at exit fixed",
+     {{0xFE960, {0x01}, {0x03}},
+      // The freed API object read at exit: CGFXMainWindow::End deletes the API objects but leaves m_pApiActual
+      // (0x10111130) pointing at one, which ~CGFXDialog then reads. Where End clears the list's count (0x100591C0),
+      // call 13 bytes of new code in the padding after ~CGFXMainWindow (0x10059451) that clears the count and the
+      // pointer. Both new stores are absolute addresses, so the relocation table follows them: the entry for the
+      // replaced store's address moves to the first, and the block's padding entry covers the second.
+      {0x591C0,
+       {0x89, 0x1D, 0x0C, 0x11, 0x11, 0x10},   // mov [m_lstAPIs+4],ebx
+       {0xE8, 0x8C, 0x02, 0x00, 0x00, 0x90}},  // call 0x10059451; nop
+      {0x59451,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x89, 0x1D, 0x0C, 0x11, 0x11, 0x10,    // mov [m_lstAPIs+4],ebx
+        0x89, 0x1D, 0x30, 0x11, 0x11, 0x10,    // mov [m_pApiActual],ebx
+        0xC3}},                                // ret
+      {0x106C44, {0xC2, 0x31}, {0x53, 0x34}},  // relocation: HIGHLOW at 0x100591C2 -> 0x10059453
+      {0x106D66, {0x00, 0x00}, {0x59, 0x34}}}},  // relocation: padding entry -> HIGHLOW at 0x10059459
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "70c3ad1cee8d1aefd57df7989d1fc47a29542a195d5096cd249fc7ccac816165",
+    {kGameFiles[0], "13b5e3f0cbed6b28a7122febfc653be6244296b3e3d54ed844c6da034573a5bd",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
      L"Rellena, two services works at once, services cost after a cafeteria is finished, rows with equal values "
-     L"swapping when a list is scrolled, fixed",
+     L"swapping when a list is scrolled, fixed; player menu opens without its animation",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -161,7 +176,14 @@ const PatchedFile kPatchedFiles[] = {
       // sorted list stays as it is. One stop for each of the sort's three kinds of row.
       {0x4BE783, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE7C2 (rows of kind 5)
       {0x4BE8C4, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE903 (rows of kinds 3 and 4)
-      {0x4BE9EF, {0x74, 0x3C}, {0x90, 0x90}}}},  // je 0x8BEA2D (rows of kinds 0 to 2)
+      {0x4BE9EF, {0x74, 0x3C}, {0x90, 0x90}},  // je 0x8BEA2D (rows of kinds 0 to 2)
+      // The player rows' pop-up menu opens with two timer animations (5 ms, so one step per system timer tick): its
+      // bottom edge slides down 8 pixels a step to the last row, then the options' text fades in 14 levels a step.
+      // The fade flickers. The menu is laid out with its bottom edge already at the last row, and both animations
+      // end on their first step.
+      {0x55664C, {0x75, 0x76}, {0xEB, 0x76}},  // jne -> jmp 0x9566C4: the bottom edge laid out as a row (the last)
+      {0x554196, {0x76, 0x5C}, {0x90, 0x90}},  // jbe 0x9541F4: the slide's next step
+      {0x5542E6, {0x72, 0x34}, {0x90, 0x90}}}},  // jb 0x95431C: the fade's next level
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)
