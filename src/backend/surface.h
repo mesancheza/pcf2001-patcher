@@ -1,7 +1,9 @@
 // Surfaces handed to the game through the device interface.
 //
 // gfxwin.dll does most of its 2D drawing itself: it locks a surface and writes pixels, or asks for a device context
-// and draws text with GDI. So every surface is a top-down DIB section in system memory, which supports both.
+// and draws text with GDI. The pixels live in ordinary heap memory, as with the original software backends; a
+// surface the game asks a device context for also gets a DIB section, a mirror its pixels are copied into while GDI
+// draws (most surfaces never need one, and a DIB section takes at least 64 KB of address space, even for a tiny image).
 // Surfaces are opaque handles to the game; only the methods of the device interface touch them.
 #pragma once
 
@@ -53,11 +55,18 @@ public:
 private:
     Surface() = default;
     bool Allocate(const SurfaceDesc& desc);
+    bool CreateMirror();
     void Free();
 
     SurfaceDesc m_desc{};
-    HANDLE m_section = nullptr;  // memory holding the pixels, with slack around them (see Allocate)
-    HBITMAP m_bitmap = nullptr;
+    void* m_block = nullptr;     // heap memory holding the pixels, with slack around them (see Allocate)
+    HANDLE m_section = nullptr;  // the GDI mirror: memory of the DIB section (see GetDC)
+    uint64_t m_pixelBytes = 0;   // for GetSurfaceStats
+    uint64_t m_viewBytes = 0;
+    int m_site = -1;             // which game code created it, with [memory] allocation_sites (LogSurfaceSites)
+    uint64_t m_siteBytes = 0;    // its address space as counted for that site
+    HBITMAP m_bitmap = nullptr;  // the GDI mirror's DIB section, and its pixels
+    void* m_mirror = nullptr;
     HGDIOBJ m_previousBitmap = nullptr;
     void* m_bits = nullptr;
     int m_stride = 0;
@@ -66,6 +75,21 @@ private:
     int m_dcUsers = 0;
     uint32_t m_palette[256]{};
 };
+
+// The surfaces alive now, for the log: their pixels, and the address space their memory takes (the heap block, plus
+// for a GDI mirror a view of a memory section, which Windows places at 64 KB granularity).
+struct SurfaceStats
+{
+    long surfaces;
+    long withDC;  // with a GDI device context (the game draws text into them)
+    uint64_t pixelBytes;
+    uint64_t viewBytes;
+};
+SurfaceStats GetSurfaceStats();
+
+// With [memory] allocation_sites: logs the game code whose surfaces grew in number the most since the previous list
+// and, with holders, the code holding the most surfaces. To tell images the game caches from surfaces it never frees.
+void LogSurfaceSites(bool holders);
 
 // Copies srcRect of src to dstRect of dst, stretching (nearest pixel) if the sizes differ. Null rectangles mean the
 // whole surface. Rectangles are clipped to both surfaces. Honors the source transparent color if it has one.

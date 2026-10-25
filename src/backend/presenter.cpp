@@ -1,6 +1,7 @@
 #include "presenter.h"
 
 #include "backend_log.h"
+#include "diagnostics.h"
 #include "surface.h"
 
 #include <d3d11.h>
@@ -55,6 +56,11 @@ bool Presenter::Create(HWND window)
     desc.Windowed = TRUE;  // always: full screen is a borderless window, never an exclusive mode change
     desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
+    // What Direct3D and the graphics driver take of the game's address space: the memory report before and after the
+    // first device (the driver's DLLs and reservations stay for the whole session).
+    static bool firstDevice = true;
+    if (firstDevice)
+        LogProcessMemory();
     const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
     HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, ARRAYSIZE(levels),
                                                D3D11_SDK_VERSION, &desc, &m_swapChain, &m_device, nullptr, &m_context);
@@ -125,6 +131,9 @@ bool Presenter::Create(HWND window)
         return false;
     }
     BackendLog("presenter ready, %dx%d window\n", m_bufferWidth, m_bufferHeight);
+    if (firstDevice)
+        LogProcessMemory();
+    firstDevice = false;
     return true;
 }
 
