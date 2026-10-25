@@ -29,13 +29,14 @@ They do the same without any window, and return exit code 0 on success.
 | File | Change |
 |---|---|
 | `dcogl.dll` | Added: the new graphics component (Direct3D 11), with the memory compatibility layer and the log ([DESIGN.md D6, D13, D14](DESIGN.md#d6-replace-the-graphics-component-through-the-games-own-plug-in-interface-using-direct3d-11)). The patcher carries it inside itself, so players download one program. |
-| `gfxwin.dll` | One byte: the default graphics backend. Details below. |
+| `gfxwin.dll` | The default graphics backend, and a fix in its shutdown code. Details below. |
 | `manager.exe` | Fixes in the game's code. Details below. |
 
 Nothing else changes. The patcher also writes the backups `pcf2001-patch\gfxwin.dll.original` and `pcf2001-patch\manager.exe.original`, and `pcf2001-patch\pcf2001-patch.log`, in the game folder.
 
-### The change to `gfxwin.dll`
+### The changes to `gfxwin.dll`
 
+**The default graphics backend.** 
 `gfxwin.dll` holds the default graphics backend as an index into its list of backend names, `dcsf.dll`, `dcsfx.dll`, `dcd3d.dll`, `dcogl.dll` ([GAME-INTERNALS.md](GAME-INTERNALS.md#how-the-game-chooses-a-graphics-backend)). The patch changes it from 1 (`dcsfx.dll`, which fails on modern Windows) to 3 (`dcogl.dll`, the new component), so every way of starting the game uses Direct3D 11, including Dinamic's launcher `pcf2001.exe` with its CD check and intro video.
 
 | | |
@@ -44,9 +45,19 @@ Nothing else changes. The patcher also writes the backups `pcf2001-patch\gfxwin.
 | Original bytes | `01 00 00 00` |
 | New bytes | `03 00 00 00` |
 | SHA-256 before | `d11c89b34f3d5aef1db32ef38b2259d6b0633ec2aa49fed66e582a00fa12a4c9` (v3.6) |
-| SHA-256 after | `bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5` |
 
-Starting `manager.exe dcogl.dll` does the same for one session, without changing the file (but without the fixes to `manager.exe`).
+Starting `manager.exe dcogl.dll` does the same for one session, without changing the file (but without the fixes to `manager.exe` and `gfxwin.dll`).
+
+**[The freed API object read at exit](GAME-INTERNALS.md#found-the-main-window-checks-a-freed-api-object-at-exit).** Where `CGFXMainWindow::End` clears its list of API objects, a call to 13 bytes of new code in the padding after `~CGFXMainWindow` clears the list and `m_pApiActual` too. Both new instructions hold absolute addresses, so two entries of the relocation table change with them: the one for the replaced instruction now points at the first, and the page block's padding entry at the second. Offsets are file offsets; in `gfxwin.dll` the VA is the offset plus `0x10000000`.
+
+| Offset | Original bytes | New bytes |
+|---|---|---|
+| `0x591C0` | `89 1D 0C 11 11 10` | `E8 8C 02 00 00 90` |
+| `0x59451` | `90` × 13 | `89 1D 0C 11 11 10 89 1D 30 11 11 10 C3` |
+| `0x106C44` (relocations) | `C2 31` | `53 34` |
+| `0x106D66` (relocations) | `00 00` | `59 34` |
+
+SHA-256 after both changes: `5f1dcc3cc690ac864f53971efb980c19d355c0c7a13bd2bbd59779cc4b1fbc41`.
 
 ### The changes to `manager.exe`
 

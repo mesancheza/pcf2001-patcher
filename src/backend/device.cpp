@@ -1,6 +1,7 @@
 #include "device.h"
 
 #include "backend_log.h"
+#include "diagnostics.h"
 #include "input_mapping.h"
 #include "memory_compat.h"
 #include "surface.h"
@@ -274,6 +275,7 @@ bool Device::ShowFrame()
     {
         BackendLog("%u frames presented in the last %.0f s\n", m_presentsSinceReport, (now - m_lastPresentReport) / 1000.0);
         LogMemoryCompatStats();
+        LogProcessMemory();
         m_presentsSinceReport = 0;
         m_lastPresentReport = now;
     }

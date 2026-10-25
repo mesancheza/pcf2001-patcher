@@ -44,9 +44,24 @@ struct PatchedFile
 const PatchedFile kPatchedFiles[] = {
     // The default graphics backend, an index into gfxwin.dll's list of backend names (dcsf, dcsfx, dcd3d, dcogl):
     // from 1 (dcsfx.dll, which fails on modern Windows) to 3 (dcogl.dll, the new component).
-    {kGameFiles[1], "bfa9fef56641836c641aac9764b747c9d5fc10568d165d2e882a67ee96ec1cf5",
-     L"default graphics backend changed to dcogl.dll",
-     {{0xFE960, {0x01}, {0x03}}}},
+    {kGameFiles[1], "5f1dcc3cc690ac864f53971efb980c19d355c0c7a13bd2bbd59779cc4b1fbc41",
+     L"default graphics backend changed to dcogl.dll, freed API object read at exit fixed",
+     {{0xFE960, {0x01}, {0x03}},
+      // The freed API object read at exit: CGFXMainWindow::End deletes the API objects but leaves m_pApiActual
+      // (0x10111130) pointing at one, which ~CGFXDialog then reads. Where End clears the list's count (0x100591C0),
+      // call 13 bytes of new code in the padding after ~CGFXMainWindow (0x10059451) that clears the count and the
+      // pointer. Both new stores are absolute addresses, so the relocation table follows them: the entry for the
+      // replaced store's address moves to the first, and the block's padding entry covers the second.
+      {0x591C0,
+       {0x89, 0x1D, 0x0C, 0x11, 0x11, 0x10},   // mov [m_lstAPIs+4],ebx
+       {0xE8, 0x8C, 0x02, 0x00, 0x00, 0x90}},  // call 0x10059451; nop
+      {0x59451,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x89, 0x1D, 0x0C, 0x11, 0x11, 0x10,    // mov [m_lstAPIs+4],ebx
+        0x89, 0x1D, 0x30, 0x11, 0x11, 0x10,    // mov [m_pApiActual],ebx
+        0xC3}},                                // ret
+      {0x106C44, {0xC2, 0x31}, {0x53, 0x34}},  // relocation: HIGHLOW at 0x100591C2 -> 0x10059453
+      {0x106D66, {0x00, 0x00}, {0x59, 0x34}}}},  // relocation: padding entry -> HIGHLOW at 0x10059459
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
     {kGameFiles[0], "70c3ad1cee8d1aefd57df7989d1fc47a29542a195d5096cd249fc7ccac816165",
