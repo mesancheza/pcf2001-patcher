@@ -1,14 +1,72 @@
 #include "surface.h"
 
 #include "backend_log.h"
+#include "memory_compat.h"
 
 #include <algorithm>
 #include <cstring>
+#include <intrin.h>
 #include <new>
 
 namespace
 {
-constexpr DWORD kSurfaceSlack = 4096;  // readable bytes before and after the pixels of every surface
+constexpr size_t kSurfaceSlack = 64;  // readable bytes before and after the pixels of every surface (see Allocate)
+constexpr uint64_t kAllocationGranularity = 65536;  // where Windows places views of memory sections
+
+// The surfaces alive now (GetSurfaceStats).
+volatile LONG g_liveSurfaces;
+volatile LONG g_surfacesWithDC;
+volatile LONG64 g_livePixelBytes;
+volatile LONG64 g_liveViewBytes;
+
+// With [memory] allocation_sites: the game code that created the surfaces alive now (LogSurfaceSites).
+constexpr int kSurfaceSiteFrames = 3;  // gfxwin.dll's CGFXSurface::Create, its loader, and who asked for it
+constexpr int kSurfaceSites = 4096;    // one more entry collects the rest if they run out
+constexpr int kSurfaceSitesListed = 12;
+
+struct SurfaceSite
+{
+    void* frames[kSurfaceSiteFrames];
+    long created;
+    long live;
+    long listedLive;  // at the previous list
+    uint64_t viewBytes;
+};
+
+SRWLOCK g_siteLock = SRWLOCK_INIT;
+SurfaceSite g_surfaceSites[kSurfaceSites + 1];
+int g_surfaceSiteCount;
+
+// The site's entry, added if new. Caller holds g_siteLock.
+int FindSurfaceSite(void* const* frames)
+{
+    for (int i = 0; i < g_surfaceSiteCount; ++i)
+    {
+        if (memcmp(g_surfaceSites[i].frames, frames, sizeof g_surfaceSites[i].frames) == 0)
+            return i;
+    }
+    if (g_surfaceSiteCount == kSurfaceSites)
+        return kSurfaceSites;
+    memcpy(g_surfaceSites[g_surfaceSiteCount].frames, frames, sizeof g_surfaceSites[g_surfaceSiteCount].frames);
+    return g_surfaceSiteCount++;
+}
+
+void LogSurfaceSite(const SurfaceSite& site)
+{
+    char where[kSurfaceSiteFrames * 48] = "";
+    size_t used = 0;
+    for (void* frame : site.frames)
+    {
+        if (!frame)
+            break;
+        char one[48];
+        DescribeCode(frame, one, sizeof one);
+        used += _snprintf_s(where + used, sizeof where - used, _TRUNCATE, "%s%s", used ? " < " : "", one);
+    }
+    BackendLog("surfaces:   %+ld; now %ld alive, %.1f MB of address space, %ld created in all; at %s\n",
+               site.live - site.listedLive, site.live, site.viewBytes / (1024.0 * 1024.0), site.created,
+               used ? where : "(other sites)");
+}
 
 struct DibInfo
 {
@@ -93,10 +151,26 @@ Surface* Surface::Create(const SurfaceDesc& desc, bool texture)
 {
     (void)texture;  // textures are ordinary surfaces here; the 2D backend never draws them as 3D textures
     auto* surface = new (std::nothrow) Surface();
-    if (surface && !surface->Allocate(desc))
+    // A surface's pixels need one stretch of free address space; when there is none, the quarantine gives memory back
+    // and the surface gets one more try (the game crashes on a surface it doesn't get).
+    if (surface && !surface->Allocate(desc) &&
+        !(RelieveMemoryPressure("a surface could not be created") && surface->Allocate(desc)))
     {
         delete surface;
         surface = nullptr;
+    }
+    if (surface && AllocationSitesEnabled())
+    {
+        void* frames[kSurfaceSiteFrames];
+        CaptureGameCallers(_AddressOfReturnAddress(), frames, kSurfaceSiteFrames);
+        AcquireSRWLockExclusive(&g_siteLock);
+        surface->m_site = FindSurfaceSite(frames);
+        surface->m_siteBytes = surface->m_viewBytes;
+        SurfaceSite& site = g_surfaceSites[surface->m_site];
+        ++site.created;
+        ++site.live;
+        site.viewBytes += surface->m_siteBytes;
+        ReleaseSRWLockExclusive(&g_siteLock);
     }
     return surface;
 }
@@ -107,15 +181,16 @@ bool Surface::Reset(const SurfaceDesc& desc)
     if (!replacement.Allocate(desc))
         return false;
     Free();
-    // Take over the new resources; the palette is kept.
+    // Take over the new pixels; the palette is kept. A GDI mirror is made again when one is needed.
     m_desc = replacement.m_desc;
-    m_bitmap = replacement.m_bitmap;
-    m_section = replacement.m_section;
+    m_block = replacement.m_block;
     m_bits = replacement.m_bits;
     m_stride = replacement.m_stride;
     m_bytesPerPixel = replacement.m_bytesPerPixel;
-    replacement.m_bitmap = nullptr;
-    replacement.m_section = nullptr;
+    m_pixelBytes = replacement.m_pixelBytes;
+    m_viewBytes = replacement.m_viewBytes;
+    replacement.m_block = nullptr;
+    replacement.m_pixelBytes = replacement.m_viewBytes = 0;
     return true;
 }
 
@@ -128,62 +203,73 @@ bool Surface::Allocate(const SurfaceDesc& requested)
         return false;
     DefaultMasks(desc);
 
+    // The pixels live in a heap block with slack before and after them, rows 4-byte aligned as in a DIB. The game's
+    // drawing code reads a little outside the surfaces it blends from (e.g. Utils.dll's mask fill reads the byte before
+    // each row and only then checks bounds); with the original software backends the pixels were heap memory too,
+    // where that was harmless.
+    const int stride = ((desc.width * desc.bitsPerPixel + 31) / 32) * 4;
+    const size_t pixelBytes = static_cast<size_t>(stride) * desc.height;
+    void* block = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, kSurfaceSlack + pixelBytes + kSurfaceSlack);
+    if (!block)
+        return false;
+    m_block = block;
+    m_bits = static_cast<uint8_t*>(block) + kSurfaceSlack;
+    m_bytesPerPixel = desc.bitsPerPixel / 8;
+    m_stride = stride;
+    m_pixelBytes = pixelBytes;
+    m_viewBytes = kSurfaceSlack + pixelBytes + kSurfaceSlack;
+    InterlockedIncrement(&g_liveSurfaces);
+    InterlockedAdd64(&g_livePixelBytes, static_cast<LONG64>(m_pixelBytes));
+    InterlockedAdd64(&g_liveViewBytes, static_cast<LONG64>(m_viewBytes));
+
+    desc.pitch = -1;
+    desc.pixels = nullptr;
+    desc.palette = m_desc.palette;  // keeps an existing palette across Reset
+    m_desc = desc;
+    return true;
+}
+
+// The GDI mirror: a DIB section with the surface's format, for GetDC.
+bool Surface::CreateMirror()
+{
     DibInfo info{};
     info.header.biSize = sizeof(BITMAPINFOHEADER);
-    info.header.biWidth = desc.width;
-    info.header.biHeight = -desc.height;  // top-down: row 0 first, positive pitch
+    info.header.biWidth = m_desc.width;
+    info.header.biHeight = -m_desc.height;  // top-down: row 0 first, positive pitch
     info.header.biPlanes = 1;
-    info.header.biBitCount = static_cast<WORD>(desc.bitsPerPixel);
-    if (desc.bitsPerPixel == 16 || desc.bitsPerPixel == 32)
+    info.header.biBitCount = static_cast<WORD>(m_desc.bitsPerPixel);
+    if (m_desc.bitsPerPixel == 16 || m_desc.bitsPerPixel == 32)
     {
         info.header.biCompression = BI_BITFIELDS;
         auto* masks = reinterpret_cast<DWORD*>(info.colors);
-        masks[0] = desc.redMask;
-        masks[1] = desc.greenMask;
-        masks[2] = desc.blueMask;
+        masks[0] = m_desc.redMask;
+        masks[1] = m_desc.greenMask;
+        masks[2] = m_desc.blueMask;
     }
     else
     {
         info.header.biCompression = BI_RGB;
-        if (desc.bitsPerPixel == 8)
+        if (m_desc.bitsPerPixel == 8)
             info.header.biClrUsed = 256;
     }
-
-    // The pixels live in a memory section with slack before and after them. The game's drawing code reads a little
-    // outside the surfaces it blends from (e.g. Utils.dll's mask fill reads the byte before each row and only then
-    // checks bounds). With dcsfx the pixels were heap memory, where that was harmless; a bare DIB section starts on
-    // a page boundary and the byte before it may not be mapped.
-    const int stride = ((desc.width * desc.bitsPerPixel + 31) / 32) * 4;
-    const uint64_t sectionSize = kSurfaceSlack + static_cast<uint64_t>(stride) * desc.height + kSurfaceSlack;
-    HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, static_cast<DWORD>(sectionSize >> 32),
-                                        static_cast<DWORD>(sectionSize), nullptr);
+    HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, static_cast<DWORD>(m_pixelBytes), nullptr);
     if (!section)
         return false;
-    void* bits = nullptr;
-    HBITMAP bitmap = CreateDIBSection(nullptr, reinterpret_cast<BITMAPINFO*>(&info), DIB_RGB_COLORS, &bits, section, kSurfaceSlack);
-    if (!bitmap || !bits)
+    void* mirror = nullptr;
+    HBITMAP bitmap = CreateDIBSection(nullptr, reinterpret_cast<BITMAPINFO*>(&info), DIB_RGB_COLORS, &mirror, section, 0);
+    if (!bitmap || !mirror)
     {
         if (bitmap)
             DeleteObject(bitmap);
         CloseHandle(section);
         return false;
     }
-    static bool checked;
-    MEMORY_BASIC_INFORMATION before{};
-    if (!checked && VirtualQuery(static_cast<uint8_t*>(bits) - 1, &before, sizeof before) && before.State != MEM_COMMIT)
-        BackendLog("surface: the memory before the pixels is not readable; the game's over-reads may fault\n");
-    checked = true;
     m_section = section;
     m_bitmap = bitmap;
-    m_bits = bits;
-    m_bytesPerPixel = desc.bitsPerPixel / 8;
-    m_stride = stride;
-    memset(m_bits, 0, static_cast<size_t>(m_stride) * desc.height);
-
-    desc.pitch = -1;
-    desc.pixels = nullptr;
-    desc.palette = m_desc.palette;  // keeps an existing palette across Reset
-    m_desc = desc;
+    m_mirror = mirror;
+    const uint64_t view = (m_pixelBytes + kAllocationGranularity - 1) / kAllocationGranularity * kAllocationGranularity;
+    m_viewBytes += view;
+    InterlockedAdd64(&g_liveViewBytes, static_cast<LONG64>(view));
     return true;
 }
 
@@ -195,30 +281,85 @@ void Surface::Free()
         DeleteDC(m_dc);
         m_dc = nullptr;
         m_dcUsers = 0;
+        InterlockedDecrement(&g_surfacesWithDC);
     }
     if (m_bitmap)
     {
         DeleteObject(m_bitmap);
         m_bitmap = nullptr;
+        m_mirror = nullptr;
     }
     if (m_section)
     {
         CloseHandle(m_section);
         m_section = nullptr;
     }
+    if (m_block)
+    {
+        HeapFree(GetProcessHeap(), 0, m_block);
+        m_block = nullptr;
+        InterlockedDecrement(&g_liveSurfaces);
+        InterlockedAdd64(&g_livePixelBytes, -static_cast<LONG64>(m_pixelBytes));
+        InterlockedAdd64(&g_liveViewBytes, -static_cast<LONG64>(m_viewBytes));
+    }
     m_bits = nullptr;
 }
 
 Surface::~Surface()
 {
+    if (m_site >= 0)
+    {
+        AcquireSRWLockExclusive(&g_siteLock);
+        --g_surfaceSites[m_site].live;
+        g_surfaceSites[m_site].viewBytes -= m_siteBytes;
+        ReleaseSRWLockExclusive(&g_siteLock);
+    }
     Free();
+}
+
+SurfaceStats GetSurfaceStats()
+{
+    return SurfaceStats{g_liveSurfaces, g_surfacesWithDC, static_cast<uint64_t>(g_livePixelBytes),
+                        static_cast<uint64_t>(g_liveViewBytes)};
+}
+
+void LogSurfaceSites(bool holders)
+{
+    AcquireSRWLockExclusive(&g_siteLock);
+    int order[kSurfaceSites + 1];
+    int count = 0;
+    for (int i = 0; i <= kSurfaceSites; ++i)
+    {
+        if (g_surfaceSites[i].created)
+            order[count++] = i;
+    }
+    const auto growth = [](int i) { return g_surfaceSites[i].live - g_surfaceSites[i].listedLive; };
+    std::sort(order, order + count, [&](int a, int b) { return growth(a) > growth(b); });
+    BackendLog("surfaces: %d creation sites; grown the most:\n", count);
+    for (int k = 0; k < count && k < kSurfaceSitesListed && growth(order[k]) > 0; ++k)
+        LogSurfaceSite(g_surfaceSites[order[k]]);
+    if (holders)
+    {
+        std::sort(order, order + count, [](int a, int b) { return g_surfaceSites[a].live > g_surfaceSites[b].live; });
+        BackendLog("surfaces: creation sites holding the most:\n");
+        for (int k = 0; k < count && k < kSurfaceSitesListed; ++k)
+            LogSurfaceSite(g_surfaceSites[order[k]]);
+    }
+    for (int k = 0; k < count; ++k)
+        g_surfaceSites[order[k]].listedLive = g_surfaceSites[order[k]].live;
+    ReleaseSRWLockExclusive(&g_siteLock);
 }
 
 bool Surface::Lock()
 {
     if (!IsLocked())
     {
-        GdiFlush();  // GDI may still be drawing into the DIB
+        // Locked while the game still holds a device context: take what GDI drew so far.
+        if (m_dcUsers > 0)
+        {
+            GdiFlush();
+            memcpy(m_bits, m_mirror, static_cast<size_t>(m_pixelBytes));
+        }
         m_desc.pitch = m_stride;
         m_desc.pixels = m_bits;
     }
@@ -227,6 +368,8 @@ bool Surface::Lock()
 
 void Surface::Unlock()
 {
+    if (IsLocked() && m_dcUsers > 0)
+        memcpy(m_mirror, m_bits, static_cast<size_t>(m_pixelBytes));  // and GDI goes on from what the game wrote
     m_desc.pitch = -1;
     m_desc.pixels = nullptr;
 }
@@ -235,22 +378,27 @@ HDC Surface::GetDC()
 {
     if (!m_dc)
     {
+        if (!m_bitmap && !CreateMirror())
+            return nullptr;
         m_dc = CreateCompatibleDC(nullptr);
         if (!m_dc)
             return nullptr;
+        InterlockedIncrement(&g_surfacesWithDC);
         m_previousBitmap = SelectObject(m_dc, m_bitmap);
         if (m_bytesPerPixel == 1)
             ApplyPalette(0, 256);
     }
-    ++m_dcUsers;
+    // GDI draws into the mirror: it starts from the pixels as they are, and they're copied back on release.
+    if (m_dcUsers++ == 0)
+        memcpy(m_mirror, m_bits, static_cast<size_t>(m_pixelBytes));
     return m_dc;
 }
 
 void Surface::ReleaseDC(HDC dc)
 {
-    if (dc == m_dc && m_dcUsers > 0)
-        --m_dcUsers;
     GdiFlush();
+    if (dc == m_dc && m_dcUsers > 0 && --m_dcUsers == 0)
+        memcpy(m_bits, m_mirror, static_cast<size_t>(m_pixelBytes));
 }
 
 void Surface::SetPalette(const uint32_t* entries)
