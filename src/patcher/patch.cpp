@@ -64,10 +64,10 @@ const PatchedFile kPatchedFiles[] = {
       {0x106D66, {0x00, 0x00}, {0x59, 0x34}}}},  // relocation: padding entry -> HIGHLOW at 0x10059459
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "70c3ad1cee8d1aefd57df7989d1fc47a29542a195d5096cd249fc7ccac816165",
+    {kGameFiles[0], "13b5e3f0cbed6b28a7122febfc653be6244296b3e3d54ed844c6da034573a5bd",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
      L"Rellena, two services works at once, services cost after a cafeteria is finished, rows with equal values "
-     L"swapping when a list is scrolled, fixed",
+     L"swapping when a list is scrolled, fixed; player menu opens without its animation",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -176,7 +176,14 @@ const PatchedFile kPatchedFiles[] = {
       // sorted list stays as it is. One stop for each of the sort's three kinds of row.
       {0x4BE783, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE7C2 (rows of kind 5)
       {0x4BE8C4, {0x74, 0x3D}, {0x90, 0x90}},  // je 0x8BE903 (rows of kinds 3 and 4)
-      {0x4BE9EF, {0x74, 0x3C}, {0x90, 0x90}}}},  // je 0x8BEA2D (rows of kinds 0 to 2)
+      {0x4BE9EF, {0x74, 0x3C}, {0x90, 0x90}},  // je 0x8BEA2D (rows of kinds 0 to 2)
+      // The player rows' pop-up menu opens with two timer animations (5 ms, so one step per system timer tick): its
+      // bottom edge slides down 8 pixels a step to the last row, then the options' text fades in 14 levels a step.
+      // The fade flickers. The menu is laid out with its bottom edge already at the last row, and both animations
+      // end on their first step.
+      {0x55664C, {0x75, 0x76}, {0xEB, 0x76}},  // jne -> jmp 0x9566C4: the bottom edge laid out as a row (the last)
+      {0x554196, {0x76, 0x5C}, {0x90, 0x90}},  // jbe 0x9541F4: the slide's next step
+      {0x5542E6, {0x72, 0x34}, {0x90, 0x90}}}},  // jb 0x95431C: the fade's next level
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

@@ -61,7 +61,7 @@ SHA-256 after both changes: `5f1dcc3cc690ac864f53971efb980c19d355c0c7a13bd2bbd59
 
 ### The changes to `manager.exe`
 
-Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)). Offsets are file offsets; in `manager.exe` the VA is the offset plus `0x400000`.
+Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)), except the last, which removes an animation that flickers. Offsets are file offsets; in `manager.exe` the VA is the offset plus `0x400000`.
 
 | Fix | Offset | Original bytes | New bytes |
 |---|---|---|---|
@@ -82,13 +82,16 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 | [Rows with equal values swap when a list is scrolled](GAME-INTERNALS.md#rows-with-equal-values-swap-when-a-list-is-scrolled) | `0x4BE783` | `74 3D` | `90 90` |
 | | `0x4BE8C4` | `74 3D` | `90 90` |
 | | `0x4BE9EF` | `74 3C` | `90 90` |
+| [The player menu's animation](GAME-INTERNALS.md#the-player-menus-animation) (not a bug fix) | `0x55664C` | `75 76` | `EB 76` |
+| | `0x554196` | `76 5C` | `90 90` |
+| | `0x5542E6` | `72 34` | `90 90` |
 
-In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s. For the player menu: a conditional jump becomes unconditional so the menu is laid out complete, and the two jumps that schedule each animation's next step become `nop`s.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `70c3ad1cee8d1aefd57df7989d1fc47a29542a195d5096cd249fc7ccac816165` |
+| SHA-256 after | `13b5e3f0cbed6b28a7122febfc653be6244296b3e3d54ed844c6da034573a5bd` |
 
 ## Applying
 

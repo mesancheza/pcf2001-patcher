@@ -207,6 +207,22 @@ This is a use-after-free: an ordering bug in the game's shutdown. It may have go
 
 **Fix:** the new backend handles this in its own code, without changing the game's files. It keeps destroyed devices' objects valid until the process ends, and their methods do nothing once the device is shut down.
 
+## The player menu's animation
+
+**Symptom:** right-clicking a player's row opens a pop-up menu (the `TX_EMERGENTE_*` texts of `GFXButtonJugador.cpp`: *Ver ficha* and the rest) that unrolls and then fades in, taking close to a second; the fade flickers.
+
+**How it opens:** the right-click handler adds the options (VA `0x956840`, one call each), sets the menu's direction flag (`0xB48F3C`) and the options' text level (the word at `0xBCD040`, read by the options' drawing code) to 0, and calls the menu's open function (VA `0x956510`). That lays out its items: the header (item 0) at the click, the options (items 1 to n−2) one 16-pixel row each, upwards if there's room above, and the bottom edge (item n−1) right below the header, where the first option goes. The options are disabled (`CGFXWindow::Enable(false, true)`). Then three timers of the menu, handled at VA `0x954137`:
+
+| Timer | Interval | What each step does |
+|---|---|---|
+| `0x1A22` | 5 ms | Moves the bottom edge 8 pixels (the counter at `+0x1A0`). Past (n−2)×16 pixels it stops, enables the options and starts `0x1A23`. |
+| `0x1A23` | 5 ms | Raises the text level by 14 and redraws the options. At 255 it stops and starts `0x1A24`. |
+| `0x1A24` | 50 ms | Not an animation: closes the menu when the mouse leaves it, and runs the option clicked. |
+
+Windows runs these timers at the system timer's tick (usually about 15.6 ms), not every 5 ms, so a menu of 17 options takes about 30 steps to unroll and 19 to fade in.
+
+**Change** (not a bug fix): the open function lays out the bottom edge like an option row, the last one, which is where the slide would leave it (`jne` → `jmp` at VA `0x95664C`), and the jumps to each animation's next step become `nop`s (VA `0x954196` and `0x9542E6`), so both end on their first step, with the menu as the animations would have left it. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). Tested in play: the fade and its flicker are gone, but the menu still seems to unroll, which none of the menu's code explains any more (nothing else reads `+0x1A0`); unconfirmed whether it's the options being enabled and redrawn one at a time.
+
 ## Bugs reported in the original game
 
 Bugs players remember from the game as it was in 2001, on the Windows of its time. The patch fixes the ones that crash the game; whether it fixes the others, which change how the game plays, is still to be decided ([DESIGN.md D8](DESIGN.md#d8-fix-bugs-at-their-cause-in-the-games-code)).
