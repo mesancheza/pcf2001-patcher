@@ -236,6 +236,8 @@ Bugs players remember from the game as it was in 2001, on the Windows of its tim
 | Absurd *Remodelar estadio* expenses after a cafeteria is finished | Fixed by the patch. See below. |
 | The groundskeeper reports finished works that never happened | Every week, the *Encargado de Campo* (groundskeeper) reports that the works are finished, although nothing was done. Fixed by the patch for new cases: see [Absurd stadium expenses after a cafeteria is finished](#absurd-stadium-expenses-after-a-cafeteria-is-finished). |
 | Scrolling a list makes a row seem to stay in place while the others move | Fixed by the patch. See [Rows with equal values swap when a list is scrolled](#rows-with-equal-values-swap-when-a-list-is-scrolled). |
+| With *Envejecimiento de los jugadores*, your young players get worse while the computer's improve | Fixed by the patch. See [Ageing undone at managed clubs](#ageing-undone-at-managed-clubs). |
+| The game sometimes crashes when choosing shirt numbers | Fixed by the patch. See [Crash choosing shirt numbers](#crash-choosing-shirt-numbers). |
 
 ### Crash with the advertising boards on Auto and no groundskeeper
 
@@ -367,6 +369,41 @@ The scroll bars call VA `0x8C93C0` (from the *Jóvenes promesas* handlers at `0x
 **Cause:** "before" compares the column's values and, for descending, returns the opposite: "not less than", which is true for equal values too. The sort takes each row that should go before the one above it and finds its place with a binary search that stops at the first row whose values are equal ("different" is false) and puts the row in front of it. In descending order, two equal neighbours always count as out of order, the search always ends up comparing the row with an equal one, and the two swap, on every sort. As the scroll moves the view by one row and the swap moves the row back by one, the row seems to stay in place. Traced: each scroll of a 20-row list sorted descending moved the same 9 rows of an already sorted list. Whether it shows depends on which column, which direction and whether that column has equal values on screen.
 
 **Fix:** the binary search no longer stops at an equal row: the conditional jump after "different" becomes two `nop`s in each of the three loops (VA `0x8BE783`, `0x8BE8C4`, `0x8BE9EF`). The search then places a row after the rows equal to it in descending order (before them in ascending order, where equal rows never count as out of order), so a sorted list stays as it is and a row that does need to move still goes to the right place. "Different" is still called, and does nothing else. Every list of this class gets the fix. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
+
+### Ageing undone at managed clubs
+
+How training, the season end and the ageing work in full, exercise by exercise, is in [TRAINING.md](TRAINING.md).
+
+**Symptom:** with *Envejecimiento de los jugadores* on, the young players of the clubs people manage stay at their database ratings or get worse over the seasons, even playing every match, while the other clubs' young players keep improving. A player whose ratings average 86 reaches 89 during a season and starts the next one below 86.
+
+**The ratings:** a player has ten ratings, as the database orders them: speed `+0xF5`, stamina `+0xF6`, aggressiveness `+0xF7`, quality `+0xF8`, headshot `+0xFD`, dribbling `+0xFC`, pass `+0xFB`, shot `+0xFE`, tackling `+0xFA`, goalkeeper `+0xF9` (the names are the database's, as the *Editor PCF 2001* reads it; the average the game shows is that of the first four). Each one has a **base** `0x0D` further on (`+0x102` to `+0x10B`), which only the database loaders set (`0x4ADCD0`, `0x4AE200`), to the same value. `+0xFF` is the *EF* column of *Alineación* and `+0x100` the energy (*EN*).
+
+**Ageing** (option 11 of the game's options, `0x4D0690`: set means no ageing, and the age `0x4B1A00` then never changes) runs once a season for every player of every club (`0x4B4150`, `0x49F230`, `0x4AF4E0`):
+
+| Age | Change to the current ratings |
+|---|---|
+| 30 or older | speed and stamina −5 from 35 up, aggressiveness and headshot −3 from 33 up |
+| 25 to 29 | none |
+| under 25 | +3, +2 or +1 to the first four, by their average (below 85, 90, 95) and the season's matches (`+0x68`: 20, 15, 10, or youth training for +3), none to a rating it would take to 99 |
+
+**What only managed clubs have** (their training object, the club state's `+0x601C`):
+
+- **Training** (`0x4C94C0` daily, `0x4CA770` after each match): every day each player's training balances (one per rating, around 1000) drift down at random; exercises add to them; after each match every 12 points of balance become one rating point, kept within a window around the base: speed, headshot, dribbling, pass, shot and tackling from 8 below to 3 above, quality from 10 below to 3 above, stamina from 15 below to 5 above, aggressiveness from 25 below to 7 above, goalkeeper from 6 below to 3 above. A gain past the window's top sets the rating to it.
+- **The season end** (`0x4C99A0`, before the ageing): every player in the training schedule has each rating set halfway between it and its base (with ageing off, to the base).
+
+**Cause:** the ageing changes the current ratings and never the base, but training and the season end measure everything from the base. At a managed club a young player's growth is pulled back by the season end and capped by training, and a veteran's decline is half undone every season; at the other clubs, with neither, both stay. Traced over two seasons with Inter (the training trace at `0x4CA770`, the season end and the ageing at every club's 32,330 players): during the season training kept every rating inside its window, the season end halved what was above the base, the computer's players under 25 gained 1.34 on average and those over 30 lost 2.9. Separately, training only lasts the season it was set for: with none set, the drift took 1.5 to 3.5 points off almost every Inter player in the first six weeks of the next season.
+
+**Fix:** each ageing change also goes to the base, for every player of every club, so training and the season end work around the player's new level and all clubs' players age alike. The regeneration of retired players (`0x4C1FF0`, from the ageing and from `0x4C18E0`), which restores the four ratings the ageing lowers from their base, then starts from the retired player's last base, at every club alike. The two blocks of `0x4AF4E0` that change the ratings are rewritten more compactly in place, around two helpers placed in the space this frees: `0x4AF64D` (a gain) and `0x4AF65B` (a decline). Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). Tested with the same career at the next season end (2002): of 32,330 players, the ageing changed 9,729, and every base moved by exactly the same amount as its rating, at Inter as at every other club. Saved games keep the bases: those moved at the 2001 season end were still there after saving and loading.
+
+### Crash choosing shirt numbers
+
+**Symptom:** in the *Dorsales* screen, selecting a player sometimes ends the game with *"La aplicación no puede continuar"*; players remember it from the original game. Seen with Inter (Serie A, which has fixed shirt numbers): `dcogl.log` shows an access violation at `gfxwin.dll+0x81a0c` (`CGFXWindow::CliToAbs`), reading address `0x108`, and the dialog's title in the dump reads *"ELIGE DORSAL PARA HAKAN"*.
+
+**The screen** (dialog `0x3C2`, `0x432540`) has a button per shirt number from 1 to 50: windows of `0x184` bytes, the one for number *n* at `+0x2398` + *n* × `0x184`. The selected player is at `+0xA16C`, and his number is the byte `+0x134` ([Shirt numbers](#shirt-numbers)). The database has numbers above 50 for 47 players: Hakan 54, Buffon 77, Peruzzi 70, Vítor Baía 99 among them.
+
+**Cause:** selecting a player (`0x432B60`) redraws, with `CGFXWindow::Invalidate`, the buttons of the previously selected player's number and of the new one's, and clearing the selection redraws the old one; none of the three checks the range, while the rest of the screen does (`0x432A47`, `0x432CAB`: number − 1 below 50). A number of 0 or above 50 makes `Invalidate` run on other data of the dialog. It does nothing when that data's "visible" byte (`+0x144`) or "surface" (`+0xF8`) is 0, and otherwise walks its "parent" chain (`+0x4`) to the main window, which crashes when the chain is garbage. So whether it crashes depends on the number and on what the dialog holds at that moment. In the crash dump (Hakan, 54, whose "parent" was `0x80`), the same check over every out-of-range number gave a crash for 54, 58, 74, 75, 80, 84 to 86, 89 and 91, a stray redraw for 0, 51, 77, 79, 90 and 92, and nothing for the others.
+
+**Fix:** the three places compute the button's address more compactly and call a helper at `0x431F81` (continued at `0x431F96`, two padding runs linked by a short jump) that redraws the button only for numbers 1 to 50. A player with a number outside that range keeps it, with no button highlighted, until he's given one from 1 to 50. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
 ### The youth search
 
