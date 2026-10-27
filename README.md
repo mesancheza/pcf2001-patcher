@@ -78,6 +78,7 @@ Say what you were doing when it happened, and roughly at what time: each line of
 |---|---|
 | [docs/DESIGN.md](docs/DESIGN.md) | Goals, scope, and every design decision with its reasoning |
 | [docs/GAME-INTERNALS.md](docs/GAME-INTERNALS.md) | What we have learned about how the game works and why it fails on modern Windows |
+| [docs/TRAINING.md](docs/TRAINING.md) | How training, the season end and the ageing change players' ratings |
 | [docs/BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) | The game's graphics plug-in interface, which the new graphics component implements |
 | [docs/INSTALLER.md](docs/INSTALLER.md) | The game installer: what it installs, and how |
 | [docs/PATCHER.md](docs/PATCHER.md) | The patcher: what it changes, and how it applies and removes it |

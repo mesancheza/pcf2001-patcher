@@ -82,16 +82,23 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 | [Rows with equal values swap when a list is scrolled](GAME-INTERNALS.md#rows-with-equal-values-swap-when-a-list-is-scrolled) | `0x4BE783` | `74 3D` | `90 90` |
 | | `0x4BE8C4` | `74 3D` | `90 90` |
 | | `0x4BE9EF` | `74 3C` | `90 90` |
+| [Ageing undone at managed clubs](GAME-INTERNALS.md#ageing-undone-at-managed-clubs) | `0xAF549` | `8A 86 F5 00 00 00 3C 23 7C 08 2C 05 88 86 F5 00 00 00 8A 86 F6 00 00 00 3C 23 7C 08 2C 05 88 86 F6 00 00 00 8A 86 F7 00 00 00 3C 21 7C 08 2C 03 88 86 F7 00 00 00 8A 86 FD 00 00 00 3C 21 0F 8C F9 00 00 00 2C 03 88 86 FD 00 00 00 E9 EC 00 00 00` | `8D 8E F5 00 00 00 66 BA 23 05 E8 03 01 00 00 41 E8 FD 00 00 00 41 66 BA 21 03 E8 F3 00 00 00 8D 8E FD 00 00 00 E8 E8 00 00 00 E9 0E 01 00 00` + `90` × 34 |
+| | `0xAF62C` | `8B 44 24 14 25 FF 00 00 00 03 F8 83 FF 63 7D 08 02 D1 88 96 F5 00 00 00 8D 14 28 83 FA 63 7D 08 02 D9 88 9E F6 00 00 00 8B 54 24 20 03 D0 83 FA 63 7D 0C 8A 54 24 12 02 D1 88 96 F7 00 00 00 8B 54 24 1C 03 C2 83 F8 63 7D 0C 8A 44 24 13 02 C1 88 86 F8 00 00 00` | `8A D1 8D 8E F5 00 00 00 E8 14 00 00 00 41 E8 0E 00 00 00 41 E8 08 00 00 00 41 E8 02 00 00 00 EB 35 8A 01 02 C2 3C 63 7D 05 88 01 00 51 0D C3 8A 01 3A C2 7C 05 28 31 28 71 0D C3` + `90` × 27 |
+| [Crash choosing shirt numbers](GAME-INTERNALS.md#crash-choosing-shirt-numbers) | `0x32B9A` | `8D 0C 40 C1 E1 05 03 C8 8D 8C 8E 98 23 00 00 FF D3` | `69 C8 84 01 00 00 03 CE E8 DA F3 FF FF 90 90 90 90` |
+| | `0x32C1A` | `8D 14 40 C1 E2 05 03 D0 8D 8C 96 98 23 00 00 FF D3` | `69 C8 84 01 00 00 03 CE E8 5A F3 FF FF 90 90 90 90` |
+| | `0x32C63` | `8D 0C 40 C1 E1 05 03 C8 8D 8C 8E 98 23 00 00 FF 15 60 A0 A6 00` | `69 C8 84 01 00 00 03 CE E8 11 F3 FF FF` + `90` × 8 |
+| | `0x31F81` | `90` × 15 | `48 83 F8 32 73 15 81 C1 98 23 00 00 EB 07 90` |
+| | `0x31F96` | `90` × 10 | `FF 25 60 A0 A6 00 C2 04 00 90` |
 | [The player menu's animation](GAME-INTERNALS.md#the-player-menus-animation) (not a bug fix) | `0x55664C` | `75 76` | `EB 76` |
 | | `0x554196` | `76 5C` | `90 90` |
 | | `0x5542E6` | `72 34` | `90 90` |
 
-In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s. For the player menu: a conditional jump becomes unconditional so the menu is laid out complete, and the two jumps that schedule each animation's next step become `nop`s.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s. For the ageing: both blocks are rewritten in place, shorter, as calls to two helpers placed in the space this frees (`0x4AF64D` for a gain, `0x4AF65B` for a decline), which change the rating as before and its base by the same amount. For the shirt numbers: each of the three places computes the button's address more compactly and calls a helper, across two padding runs linked by a short jump, that redraws the button only for numbers 1 to 50. For the player menu: a conditional jump becomes unconditional so the menu is laid out complete, and the two jumps that schedule each animation's next step become `nop`s.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `13b5e3f0cbed6b28a7122febfc653be6244296b3e3d54ed844c6da034573a5bd` |
+| SHA-256 after | `70755417cdd1e6469f918a96e7fa5927e00dee3a4f496355599b1990f99412b6` |
 
 ## Applying
 
