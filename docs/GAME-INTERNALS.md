@@ -533,29 +533,7 @@ A youth player trains while his byte `+0x101` is set. The *Entrenando* button of
 
 ### The computer's clubs' signings
 
-How a club the computer runs chooses players to sign, which the mods `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel` change ([MODS.md](MODS.md#fichajes-de-mas-nivel-and-fichajes-del-doble-de-nivel)). Read from the code; not traced in play.
-
-`0x494AA0` runs every day for each club, from the club's daily processing (`0x49EFFB` in `0x49E1E0`), when `0x4A7F00` returned 0 (presumably no one manages the club; not identified). It gives up unless:
-
-- option 10 of `0x4D0690` is clear;
-- the club's ID is below 9900, so not a hidden team;
-- the squad has fewer than 25 players, and a random number below the squad size is below 16;
-- the club's `+0x108` is set, or a 1-in-35 chance passes.
-
-It works out the club's average *T*: the sum of speed, stamina, aggressiveness and quality over the squad, divided by 4 × the squad size. It then picks the position it needs (`0x49A980`, `0x494400`; otherwise a random one from 1 to 19), and looks in four places, each taking a player only if his average (of the same four ratings) is in a window around *T*:
-
-| Where | Which player | Window | Checks (VA) |
-|---|---|---|---|
-| The free agents (club 9950) | the best for the position (`0x494400`), with no pending move (`+0xDC`) and fewer than 3 offers | at least *T* − 4 | `0x494CF5` |
-| The list at the context's `+0x44`, probably the transfer list | a seller with more than 16 players, not the club itself (`0x494A30`); the position (`0x4933E0`); a random chance (below) | *T* − 2 to *T* + 4 | `0x4951DE`, `0x4951E9` |
-| Other clubs (the context's `+0x4C`), each with a 1-in-6000 chance | his club's best for the position, by contract years and salary | *T* − 2 to *T* + 2 | `0x4954C1`, `0x4954CC` |
-| A random club's squad, on 3% of days after the 7th not divisible by 4 | any of its players | above *T*, up to *T* + 5; or up to *T* + 10 if `0x4B0360` is below 25 | `0x495860` to `0x495883` |
-
-The list's chance is a random number below *N* (how it's then tested isn't noted here), with *N* 0 (none) if the squad has fewer than 16 players, and otherwise 65 (55 if the seller is managed); 12 less if both are in the same competition, 36 less if the seller's `+0x108` is set, 2 less if the squad has fewer than 20. `0x4B0360` returns (`+0x110` × 50 + `+0x10F` × 30) / 100, plus 15 if bit 0 of `+0x13D` is clear and 5 if bit 1 is: not the age, and not identified.
-
-Every margin is the 8-bit immediate of one `lea` or `add`, and each check is an unsigned `ja`/`jbe`, so the window includes its ends. The foreign-player limit is checked too (`0x4B1C90`, [Foreign players](#foreign-players)), and the offers are made by `0x4A0500` (`0x49511F`, `0x495717`, `0x495A17`) and `0x4B16B0`; what those check isn't identified.
-
-**Renewals:** the club's transfer processing (`0x4C1030`) renews a player in the last year of his contract (`+0xD5` is 1, checked every 8 days) if his average is at least *T*, or his salary (`+0x6C`) is at least half of the club's `+0x14C`.
+How a club the computer runs chooses players to sign, which the mods `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel` change, is in [TRANSFERS.md](TRANSFERS.md#the-computers-clubs-signings), with how offers to players are accepted or refused.
 
 ### Youth player offered a salary of 0
 

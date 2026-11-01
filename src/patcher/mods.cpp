@@ -184,15 +184,17 @@ const std::vector<Mod> kMods = {
       {0x93921, {0xB8, 0x05, 0x00, 0x00, 0x00}, {0xB8, 0x07, 0x00, 0x00, 0x00}}}},  // 0x493921: mov eax,5 (no match)
     // Signings of a higher level, ×1.5 and ×2: the computer's clubs' signings (0x494AA0) take a player only if his
     // average is within a window around the club's (T). Raise the windows' tops, whose margins are each one
-    // instruction's 8-bit immediate: the list at the context's +0x44 (up to T+4), the best player of another club (up
-    // to T+2) and a random club's squad (up to T+5, or T+10 when 0x4B0360 is below 25). The bottoms stay, and the free
-    // agents have no top. Both change the same bytes, so only one can be installed.
+    // instruction's 8-bit immediate: the transfer list (the context's +0x40, up to T+4), the loan list (+0x44, up to
+    // T+4), the best player of another club (up to T+2) and a random club's squad (up to T+5, or T+10 when 0x4B0360 is
+    // below 25). The bottoms stay, and the free agents have no top. Both change the same bytes, so only one can be
+    // installed.
     {L"fichajes-de-mas-nivel", L"Fichajes de más nivel (×1,5)",
      L"Los clubes que lleva el ordenador pueden fichar jugadores más por encima de su propia media: el margen es un 50 % "
      L"mayor que en el juego original (por ejemplo, hasta 6 puntos más en vez de 4). Por abajo no cambia nada. No se "
      L"puede instalar junto con \"Fichajes de más nivel (×2)\".",
      L"manager.exe",
-     {{0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x06}},   // 0x4951E9 add ecx,4 -> 6: the list
+     {{0x94E5C, {0x83, 0xC2, 0x04}, {0x83, 0xC2, 0x06}},   // 0x494E5C add edx,4 -> 6: the transfer list
+      {0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x06}},   // 0x4951E9 add ecx,4 -> 6: the loan list
       {0x954CC, {0x83, 0xC0, 0x02}, {0x83, 0xC0, 0x03}},   // 0x4954CC add eax,2 -> 3: another club's best
       {0x9586A, {0x8D, 0x50, 0x05}, {0x8D, 0x50, 0x08}},   // 0x49586A lea edx,[eax+5] -> 8: a squad
       {0x95871, {0x83, 0xC0, 0x0A}, {0x83, 0xC0, 0x0F}}}},  // 0x495871 add eax,0Ah -> 0Fh: a squad, 0x4B0360 < 25
@@ -201,10 +203,21 @@ const std::vector<Mod> kMods = {
      L"doble que en el juego original (por ejemplo, hasta 8 puntos más en vez de 4). Por abajo no cambia nada. No se "
      L"puede instalar junto con \"Fichajes de más nivel (×1,5)\".",
      L"manager.exe",
-     {{0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x08}},
+     {{0x94E5C, {0x83, 0xC2, 0x04}, {0x83, 0xC2, 0x08}},
+      {0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x08}},
       {0x954CC, {0x83, 0xC0, 0x02}, {0x83, 0xC0, 0x04}},
       {0x9586A, {0x8D, 0x50, 0x05}, {0x8D, 0x50, 0x0A}},
       {0x95871, {0x83, 0xC0, 0x0A}, {0x83, 0xC0, 0x14}}}},
+    // Transfer-listed players of any level: the computer's clubs' signings (0x494AA0) take a player from the transfer
+    // list (the context's +0x40) only if his average is at most the club's (T) plus 4, which a club's whole-squad
+    // average keeps far below its best players. Drop that check; the bottom (T-2), the position, the chance, the
+    // release clause against the club's +0x124 and the other checks stay.
+    {L"transferibles-sin-limite-de-nivel", L"Transferibles sin límite de nivel",
+     L"Los clubes que lleva el ordenador pueden hacer ofertas por los jugadores transferibles aunque sean mucho mejores "
+     L"que su plantilla: ya no hay un límite por arriba según la media del club. Siguen contando el puesto que buscan, "
+     L"su dinero frente a la cláusula del jugador y las demás condiciones.",
+     L"manager.exe",
+     {{0x94E61, {0x0F, 0x87, 0xC6, 0x02, 0x00, 0x00}, {0x90, 0x90, 0x90, 0x90, 0x90, 0x90}}}},  // ja 0x49512D -> nops
 };
 
 bool Matches(const std::vector<uint8_t>& bytes, size_t offset, const std::vector<uint8_t>& expected)
