@@ -182,6 +182,29 @@ const std::vector<Mod> kMods = {
       {0x27D710, {0xC7, 0x46, 0x24, 0x05, 0x00, 0x00, 0x00}, {0xC7, 0x46, 0x24, 0x07, 0x00, 0x00, 0x00}},  // 0x67D710
       {0x27EB03, {0xC7, 0x46, 0x24, 0x05, 0x00, 0x00, 0x00}, {0xC7, 0x46, 0x24, 0x07, 0x00, 0x00, 0x00}},  // 0x67EB03
       {0x93921, {0xB8, 0x05, 0x00, 0x00, 0x00}, {0xB8, 0x07, 0x00, 0x00, 0x00}}}},  // 0x493921: mov eax,5 (no match)
+    // Signings of a higher level, ×1.5 and ×2: the computer's clubs' signings (0x494AA0) take a player only if his
+    // average is within a window around the club's (T). Raise the windows' tops, whose margins are each one
+    // instruction's 8-bit immediate: the list at the context's +0x44 (up to T+4), the best player of another club (up
+    // to T+2) and a random club's squad (up to T+5, or T+10 when 0x4B0360 is below 25). The bottoms stay, and the free
+    // agents have no top. Both change the same bytes, so only one can be installed.
+    {L"fichajes-de-mas-nivel", L"Fichajes de más nivel (×1,5)",
+     L"Los clubes que lleva el ordenador pueden fichar jugadores más por encima de su propia media: el margen es un 50 % "
+     L"mayor que en el juego original (por ejemplo, hasta 6 puntos más en vez de 4). Por abajo no cambia nada. No se "
+     L"puede instalar junto con \"Fichajes de más nivel (×2)\".",
+     L"manager.exe",
+     {{0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x06}},   // 0x4951E9 add ecx,4 -> 6: the list
+      {0x954CC, {0x83, 0xC0, 0x02}, {0x83, 0xC0, 0x03}},   // 0x4954CC add eax,2 -> 3: another club's best
+      {0x9586A, {0x8D, 0x50, 0x05}, {0x8D, 0x50, 0x08}},   // 0x49586A lea edx,[eax+5] -> 8: a squad
+      {0x95871, {0x83, 0xC0, 0x0A}, {0x83, 0xC0, 0x0F}}}},  // 0x495871 add eax,0Ah -> 0Fh: a squad, 0x4B0360 < 25
+    {L"fichajes-del-doble-de-nivel", L"Fichajes de más nivel (×2)",
+     L"Los clubes que lleva el ordenador pueden fichar jugadores más por encima de su propia media: el margen es el "
+     L"doble que en el juego original (por ejemplo, hasta 8 puntos más en vez de 4). Por abajo no cambia nada. No se "
+     L"puede instalar junto con \"Fichajes de más nivel (×1,5)\".",
+     L"manager.exe",
+     {{0x951E9, {0x83, 0xC1, 0x04}, {0x83, 0xC1, 0x08}},
+      {0x954CC, {0x83, 0xC0, 0x02}, {0x83, 0xC0, 0x04}},
+      {0x9586A, {0x8D, 0x50, 0x05}, {0x8D, 0x50, 0x0A}},
+      {0x95871, {0x83, 0xC0, 0x0A}, {0x83, 0xC0, 0x14}}}},
 };
 
 bool Matches(const std::vector<uint8_t>& bytes, size_t offset, const std::vector<uint8_t>& expected)
@@ -259,6 +282,11 @@ bool ReadModFiles(const std::filesystem::path& gameFolder, std::map<std::wstring
 const std::vector<Mod>& Mods()
 {
     return kMods;
+}
+
+bool ModsConflict(size_t a, size_t b)
+{
+    return a != b && Overlap(kMods[a], kMods[b]);
 }
 
 bool RemoveInstalledMods(const wchar_t* fileName, std::vector<uint8_t>& bytes)

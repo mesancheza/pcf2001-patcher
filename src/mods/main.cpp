@@ -16,6 +16,7 @@
 #include <shellapi.h>
 #include <shobjidl.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -141,6 +142,18 @@ INT_PTR CALLBACK MainDialog(HWND dialog, UINT message, WPARAM wParam, LPARAM lPa
             const auto* change = reinterpret_cast<const NMLISTVIEW*>(lParam);
             if ((change->uChanged & LVIF_STATE) && ((change->uNewState ^ change->uOldState) & LVIS_SELECTED))
                 ShowModDescription(dialog);
+            // Checking a mod unchecks those that change the same bytes: only one of them can be installed.
+            const UINT checked = INDEXTOSTATEIMAGEMASK(2);
+            if ((change->uChanged & LVIF_STATE) && (change->uNewState & LVIS_STATEIMAGEMASK) == checked &&
+                (change->uOldState & LVIS_STATEIMAGEMASK) != checked)
+            {
+                HWND list = GetDlgItem(dialog, IDC_LIST);
+                for (size_t i = 0; i < Mods().size(); ++i)
+                {
+                    if (ModsConflict(i, static_cast<size_t>(change->iItem)))
+                        ListView_SetCheckState(list, static_cast<int>(i), FALSE);
+                }
+            }
         }
         break;
     }
@@ -221,7 +234,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
     const bool install = _wcsicmp(command.c_str(), L"/instalar") == 0;
     if (install || _wcsicmp(command.c_str(), L"/quitar") == 0)
     {
-        // The other mods stay as they are.
+        // The other mods stay as they are, except that installing one removes those that change the same bytes.
         const ModsStatus status = CheckMods(g_folder);
         std::wstring error;
         result = 1;
@@ -229,7 +242,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
         {
             std::vector<bool> wanted = status.installed;
             for (size_t m : named)
+            {
                 wanted[m] = install;
+                for (size_t other = 0; install && other < wanted.size(); ++other)
+                {
+                    // Two named together stay wanted, and SetMods refuses them.
+                    if (ModsConflict(m, other) && std::find(named.begin(), named.end(), other) == named.end())
+                        wanted[other] = false;
+                }
+            }
             result = SetMods(g_folder, wanted, error) ? 0 : 1;
         }
     }

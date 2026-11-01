@@ -20,6 +20,9 @@ struct Mod
 
 const std::vector<Mod>& Mods();
 
+// True if two mods (indexes in Mods()) change the same bytes, so only one of them can be installed.
+bool ModsConflict(size_t a, size_t b);
+
 // Undoes every mod installed in a game file's contents. False if a mod's bytes are damaged.
 bool RemoveInstalledMods(const wchar_t* fileName, std::vector<uint8_t>& bytes);
 
