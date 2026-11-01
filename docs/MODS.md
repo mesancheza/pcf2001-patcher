@@ -13,7 +13,9 @@ pcf2001-mods.exe /instalar <mod>... [<carpeta>]
 pcf2001-mods.exe /quitar <mod>... [<carpeta>]
 ```
 
-Mods are named by their id (below); the others stay as they are. Without a folder, the game is found through the registry value its installer wrote.
+Mods are named by their id (below); the others stay as they are, except those that change the same bytes as one being installed, which are removed.
+
+Some mods are alternatives to each other because they change the same bytes, such as the two *Fichajes de más nivel*: only one of them can be installed. Checking one in the window unchecks the other. Without a folder, the game is found through the registry value its installer wrote.
 
 ## The mods
 
@@ -28,6 +30,8 @@ Mods are named by their id (below); the others stay as they are. Without a folde
 | `bandera-del-pais-de-nacimiento` | *Bandera del país de nacimiento* | Players' flags show their country of birth when the game knows it, instead of their nationality |
 | `juveniles-entrenando-sin-limite` | *Juveniles entrenando sin límite* | Any number of youth players can train at once, not only 1 to 4 depending on the youth coach |
 | `siete-suplentes-en-todas-las-competiciones` | *Siete suplentes en todas las competiciones* | Every competition allows seven substitutes on the bench, not only some, for every club, automatic line-ups included |
+| `fichajes-de-mas-nivel` | *Fichajes de más nivel (×1,5)* | The computer's clubs can sign players further above their own average: the margins are 50% larger. Not with the ×2 one |
+| `fichajes-del-doble-de-nivel` | *Fichajes de más nivel (×2)* | The same, with the margins doubled. Not with the ×1,5 one |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -165,11 +169,30 @@ A match's bench size is a field of the match, which new matches start with as 7;
 
 Tested in play: the line-up's bench showed seven substitutes.
 
+### `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel`
+
+A computer's club signs a player only if his average (speed, stamina, aggressiveness and quality, as *ME*) is within a window around the club's own average, *T* ([GAME-INTERNALS.md](GAME-INTERNALS.md#the-computers-clubs-signings)). The mods raise the top of each window; the bottoms stay, and the free agents already had no top. Halves are rounded up.
+
+| Where the club looks | Original | ×1,5 | ×2 |
+|---|---|---|---|
+| The list at the context's `+0x44` (probably the transfer list) | up to *T* + 4 | *T* + 6 | *T* + 8 |
+| The best player of another club | up to *T* + 2 | *T* + 3 | *T* + 4 |
+| A random club's squad | up to *T* + 5, or *T* + 10 when `0x4B0360` is below 25 | *T* + 8, or *T* + 15 | *T* + 10, or *T* + 20 |
+
+| File | Offset | Before | ×1,5 | ×2 |
+|---|---|---|---|---|
+| `manager.exe` | `0x951E9` | `83 C1 04` (`add ecx,4`) | `83 C1 06` | `83 C1 08` |
+| | `0x954CC` | `83 C0 02` (`add eax,2`) | `83 C0 03` | `83 C0 04` |
+| | `0x9586A` | `8D 50 05` (`lea edx,[eax+5]`) | `8D 50 08` | `8D 50 0A` |
+| | `0x95871` | `83 C0 0A` (`add eax,0Ah`) | `83 C0 0F` | `83 C0 14` |
+
+Both change the same bytes, so only one can be installed. Not tested in play yet. A wider window doesn't mean the transfer happens: what stops an offer afterwards (the buyer's money, the selling club, the player) isn't identified.
+
 ## How it works
 
 - **Each mod is a list of byte changes** in `src/patcher/mods.cpp`, with the bytes before and after. "Before" is the file as the patch leaves it: mods go on top of the patch, never on the v3.6 files.
 - **Checking the game:** for each file the mods change, the tool undoes the mods it finds installed, in memory, and checks that the result is the file as this version of the patch leaves it (its SHA-256 in `src/patcher/patch.cpp`). Only then does it install or remove anything. So any combination of mods is checked against one known hash, and a file with changes from anywhere else is never touched.
-- **Changing the mods:** each file is rebuilt from that result with the wanted mods, checked again, and written next to the original and moved over it, as the patcher does. Mods that change the same bytes can't be installed together.
+- **Changing the mods:** each file is rebuilt from that result with the wanted mods, checked again, and written next to the original and moved over it, as the patcher does. Mods that change the same bytes can't be installed together (`ModsConflict`): the window unchecks the other one, `/instalar` removes it, and the tool refuses both at once.
 - **No backups:** removing a mod writes its "before" bytes back. The patch's backups, in `pcf2001-patch\`, stay the one copy of the v3.6 files.
 - **The log** is `pcf2001-patch\pcf2001-mods.log`, next to the patch's.
 
