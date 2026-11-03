@@ -11,7 +11,7 @@ A player's offers are a list at `+0xE0` (count at `+0xE4`), one 0x28-byte entry 
 | `+0x00` | the club's ID (word) |
 | `+0x04` | release clause (*cláusula de rescisión*) |
 | `+0x08` | yearly salary (*ficha anual*) |
-| `+0x0C` | an amount whose label isn't identified (text 0x586 of the offer screen) |
+| `+0x0C` | *Primas por gol*, the bonus per goal (the offer screen's label comes from `[0xBCFC24]`, a function per language: `0x9C6670` gives *Primas por gol*, `0x9C6C10` *Scoring bonus*) |
 | `+0x10` | *Prima por Copa Nacional* |
 | `+0x14` | *Prima ascenso/ganar liga* |
 | `+0x18` | *Prima por Copa Internacional* |
@@ -37,7 +37,13 @@ The negotiation with the player's club (`0x4B1640` finds it, by player and club)
 
 ## Club levels
 
-Every club has a **level** at `+0xEC`, from 0 to 13, which the salaries and the player's judgement of an offer depend on. 0 is the richest: the salary a level expects scales with (1 − 0.1 × level)^4.5 (`0x491680`, levels above 9 count as 9), so a level-1 club pays 62% of a level-0 one, and a level-3 club 20%. How the level is set isn't identified. The contract options suggest it reflects what is expected of the club: levels 3, 6, 9 and 12 go with relegation, 4, 7, 10 and 13 with promotion, 2 and 3 with Europe.
+Every club has a **level** at `+0xEC`, from 0 to 13, which the salaries and the player's judgement of an offer depend on. 0 is the richest: the salary a level expects scales with (1 − 0.1 × level)^4.5 (`0x491680`, levels above 9 count as 9), so a level-1 club pays 62% of a level-0 one, and a level-3 club 20%. **How the level is set** (`0x49A649`–`0x49A6C3`): the average of speed, stamina, aggressiveness and quality over the squad (`0x49AB30`: the best 80% of the players for clubs whose `+0x112` is 30, probably Spain; every player otherwise), turned into a level by `0x4A1B90`:
+
+| Average | 80+ | 76–79 | 72–75 | 67–71 | 64–66 | 60–63 | 56–59 | 54–55 | 52–53 | below 52 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Level | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+
+It's worked out where the club's competition (`+0xD8`) is set; when that runs isn't checked. The same function places a player at a level by his own average (the playing-time rule below). Nothing about the stadium enters it, nor any other part of the decisions in this document: the stadium only helps keep a club's own players, through their playing time (*Calefacción césped* +2, *Vestuarios* +4 and an *Enfermería* level +4 for the whole squad when the work ends).
 
 ## When offers are processed
 
@@ -96,7 +102,7 @@ He weighs each offer once (state bit 1), with the same 60%, 90%, then certain ch
 
 | Extra | Counts as, if at least 1 million |
 |---|---|
-| `+0x0C` (label not identified) | 15 × |
+| *Primas por gol* | 15 ×, whatever his position: as if he scored 15 goals a season |
 | *Prima por Copa Nacional* | 0.4 × at level *b* 0, 0.2 × at level 3 or above, nothing at levels 1 and 2 |
 | *Prima ascenso/ganar liga* | 0.2 ×, only at levels 1, 4, 7 and 10 |
 | *Prima por Copa Internacional* | 0.2 × at level 1 or above, nothing at level 0 |
@@ -124,7 +130,27 @@ He weighs each offer once (state bit 1), with the same 60%, 90%, then certain ch
 
 ### What he compares it with
 
-His current contract, scored the same way at his own club's level for both *a* and *b* (`0x4BEFB0`), times (*A* ÷ 70)². *A* (`0x4B0360`) is (`+0x110` × 50 + `+0x10F` × 30) ÷ 100, plus 15 if he isn't transfer-listed (`+0x13D` bit 0) and 5 if bit 1 of `+0x13D` is clear (probably not loan-listed). What `+0x10F` and `+0x110` are isn't identified; *A* reaches about 99, so it can double his current contract's score.
+His current contract, scored the same way at his own club's level for both *a* and *b* (`0x4BEFB0`), times (*A* ÷ 70)². *A* (`0x4B0360`) is (`+0x110` × 50 + `+0x10F` × 30) ÷ 100, plus 15 if he isn't transfer-listed (`+0x13D` bit 0) and 5 if bit 1 of `+0x13D` is clear (probably not loan-listed). *A* reaches 99, so it can double his current contract's score: traced with Zidane at Juventus, *A* 99, current contract 3.43 against an offer of his own salary for 4 years, 2.00.
+
+**What *A* is made of** (from the code; not traced over time):
+
+| Byte | What changes it |
+|---|---|
+| `+0x110`, playing time (half of *A*) | After a match (`0x4AEB60`): set to 99 if he played 90 minutes or more, or is injured (`+0xB0`), or `+0x112` is set. Otherwise it goes down: by 33 if his average is 85 or more, or if his average puts him at a better level than his club's (`0x4A1B90` gives a lower level number than the club's `+0xEC`); by 11 at 82 to 84; by 5 or 7 otherwise. Halved if `+0x58` is clear, × 1.5 if his *EF* is above 80, halved again if he played some minutes. The stadium's weekly update adds 2 or 4 to the whole squad when some works end (`0x4CD549`, `0x4CD598`, `0x4CD7C5`). Kept from 0 to 99 (`0x4B03B0`) |
+| `+0x10F`, rivals (30%) | When a player arrives at his club (`0x4BE940`, called with 1 from `0x4BE3D3`), every other squad player is compared with him by current average (*ME*, `0x406970`), specific position (`+0x5F`), line (`+0x58`: 0 for goalkeepers) and salary. A squad player who shares the position or the line gets `+0x10F` = 99 − *X*, at most `+0x10E` (99 unless set elsewhere), with *X* in the table below. Each arrival sets it again rather than adding up. When a player leaves (called with 0 from `0x4BEF93`), the same comparison sets it to `+0x10E` + *X*, so back to 99 |
+| Both | Set to 99, with `+0x10D` and `+0x10E`, by `0x4BD9D0`, which moves a player into a club from a list: called by the *Jóvenes promesas* screen (`0x451C2D`, `0x451E41`) and four places not identified. A transfer completed by the club's processing (`0x4BE090`) and a renewal (`0x4B0E80`, from `0x4C138B`) don't touch them. 99 too for players loaded from the database (`0x4AE9B3`) |
+
+*X* for a squad player compared with the newcomer:
+
+| His average against the newcomer's | Same position, he earns less | Same position, he earns as much or more | Same line only, he earns less | Same line only, as much or more |
+|---|---|---|---|---|
+| within 2 | 60 | 40 | 50 | 30 |
+| 3 or more below | 60 | 30 | 35 | 20 |
+| 3 or more above | 50 | 50 | 35 | 35 |
+
+A squad player whose own club isn't that club (`+0xB4`) gets 50 or 40 (within 2) or 35 or 20 (3 or more below), with no salary test.
+
+So a player who plays every match, with no rival signed for his position, stays at 99, renewed or not; a star left out of a few matches loses most of the playing-time half. The buying club can't change *A*.
 
 For a renewal the offer is multiplied by (*A* ÷ 70)² too, so *A* cancels out. A free agent compares with a standard contract (`0x4912F0`) times 0.51.
 
@@ -138,7 +164,7 @@ If the offer scores less, and a person manages the buying club, he tries changes
 |---|---|
 | More years, up to 4, or fewer, down to 1 | `0x5AE` more, `0x5B1` fewer (`0x5BB`, `0x5BC`) |
 | 1.1 × the salary | `0x5AD` with the amount (`0x5BA`) |
-| 1.25 × the salary | `0x5AC` with the amount (`0x5B9`) |
+| 1.375 × the salary (1.25 × the previous step) | `0x5AC`, without the amount (`0x5B9`); confirmed in play: Zidane, with an attachment of 99, asked for it after an offer of his own salary for 4 years |
 | *Libertad por descenso* | `0x5B4` (`0x5BD`) |
 
 Accepting one of these demands makes the new offer with it (`0x489C9C` sets *Libertad por descenso*). *Libertad por descenso* only changes the score when the buying club's level is 3, 6, 9 or 12, so for other clubs the last try never works. If nothing works, he refuses:
@@ -163,6 +189,7 @@ For a club signing a player:
 - A selling club with 16 players or fewer never sells.
 - The fee must reach 95% of the club's value of the player, and that value follows his release clause when the clause is large. Paying the clause itself is always accepted.
 - Raising the salary helps with its square. *Casa y coche* is worth 75 million a year to a player joining a level-0 club.
+- *Primas por gol* counts 15 times in the player's judgement whatever his position, while the club pays it only per goal (not checked): a goal bonus to a defender or a goalkeeper costs little and weighs a lot.
 - 4 or 5 years score best; 7 years scores less than 3.
 - A release clause in the offer can make a player who likes the money refuse it.
 - A richer rival offer wins: he takes the best-scoring one.
@@ -209,9 +236,10 @@ Every margin is the 8-bit immediate of one `lea` or `add`, and each check is an 
 
 ## Not confirmed
 
-- How a club's level (`+0xEC`) is set, and what each value means.
-- What `+0x10F` and `+0x110` are (*A*), and that bit 1 of `+0x13D` is loan-listing.
-- The label of the offer's `+0x0C`, and the meaning of `+0x21`.
+- When a club's level is worked out, and what the levels above 9 (up to 12) are for.
+- Which *Equipamiento* row is which work type (assumed to follow the panel's order).
+- When `0x4AEB60` runs, what `+0x10E`, `+0x112` and `+0x58` are, and that bit 1 of `+0x13D` is loan-listing.
+- The meaning of the offer's `+0x21`.
 - How the percentage *p* is worked out in full, and what `0x491430` and `0x491570` compute.
 - What *Casa y coche* costs the club.
 - The texts of the message numbers.

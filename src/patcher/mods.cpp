@@ -218,6 +218,71 @@ const std::vector<Mod> kMods = {
      L"su dinero frente a la cláusula del jugador y las demás condiciones.",
      L"manager.exe",
      {{0x94E61, {0x0F, 0x87, 0xC6, 0x02, 0x00, 0x00}, {0x90, 0x90, 0x90, 0x90, 0x90, 0x90}}}},  // ja 0x49512D -> nops
+    // Stands of any type: a stand (an amphitheatre's side) stores one of 13 values (0 none, then three each for VIP,
+    // Palco, Tribuna and Grada), and the table at 0xA732A8 gives for each the lowest type button allowed: the current
+    // one's plus 1. Two places enable the buttons from it, the stand panel's loop (0x4DF550) and the drawing of each
+    // button with its label (0x4DF960): only the types above the current one. Enable every type but the current one,
+    // in both; the finished work (0x4CD12F) already sets any type, taking off the old seats and adding the new ones.
+    // The table is also read elsewhere, so it stays; the address arithmetic around it is compacted to make room.
+    {L"gradas-de-cualquier-tipo", L"Gradas de cualquier tipo",
+     L"Al remodelar el estadio, una grada puede cambiarse a cualquier tipo, también a uno inferior: una grada VIP "
+     L"puede volver a ser Palco, Tribuna o Grada. Cada cambio es una obra como las demás.",
+     L"manager.exe",
+     {{0xDF853,
+       {0xC1, 0xE0, 0x03, 0x8D, 0x0C, 0x88, 0x8B, 0x04, 0x11, 0x39, 0x3C, 0x85, 0xA8, 0x32, 0xA7, 0x00, 0x77, 0x1A},
+       {0x8D, 0x04, 0xC2,                          // lea eax,[edx+eax*8]
+        0x8B, 0x04, 0x88,                          // mov eax,[eax+ecx*4] (the stand's value; was shl/lea/mov)
+        0x8B, 0x0C, 0x85, 0xA8, 0x32, 0xA7, 0x00,  // mov ecx,[eax*4+0A732A8h]
+        0x49,                                      // dec ecx (the current type's button, -1 for none)
+        0x3B, 0xCF,                                // cmp ecx,edi
+        0x74, 0x1A}},                              // je 0x4DF87F (was: ja, every type up to the current one)
+      {0xDF98D,
+       {0xC1, 0xE0, 0x03, 0x8D, 0x0C, 0x88, 0x8B, 0x04, 0x11, 0x8B, 0x0C, 0x85, 0xA8, 0x32, 0xA7, 0x00, 0x89, 0x4C,
+        0x24, 0x10},
+       {0x8D, 0x04, 0xC2,                          // lea eax,[edx+eax*8]
+        0x8B, 0x04, 0x88,                          // mov eax,[eax+ecx*4]
+        0x8B, 0x0C, 0x85, 0xA8, 0x32, 0xA7, 0x00,  // mov ecx,[eax*4+0A732A8h]
+        0x49,                                      // dec ecx
+        0x89, 0x4C, 0x24, 0x10,                    // mov [esp+10h],ecx (the current type's button)
+        0x90, 0x90}},
+      {0xDF9AF,
+       {0x8D, 0x14, 0x40, 0x8D, 0x04, 0x90, 0x8B, 0x54, 0xC1, 0x64, 0x8B, 0x04, 0x95, 0xA8, 0x32, 0xA7, 0x00, 0x89,
+        0x44, 0x24, 0x10},
+       {0x6B, 0xC0, 0x0D,                          // imul eax,eax,0Dh (was two lea)
+        0x8B, 0x54, 0xC1, 0x64,                    // mov edx,[ecx+eax*8+64h]
+        0x8B, 0x04, 0x95, 0xA8, 0x32, 0xA7, 0x00,  // mov eax,[edx*4+0A732A8h]
+        0x48,                                      // dec eax
+        0x89, 0x44, 0x24, 0x10,                    // mov [esp+10h],eax
+        0x90, 0x90}},
+      {0xDFA20, {0x77, 0x6D}, {0x74, 0x6D}}}},     // ja -> je 0x4DFA8F: disable only the current type
+    // Cafés that can be changed: the 22 places for a bar, cafeteria or restaurant are entries at the stadium's +0x1B8
+    // (0x1C bytes, type at +8). The Remodelar panel skips the enable checks for a place that has one (0x4DE52E), and
+    // its check (0x8AAFB0) answers the existing type, or -1 for the same type, before the stadium-size checks, which
+    // answer -2 or less. Enable a built place too, on any answer of -1 or more. Ordering (0x8AAEB0) already builds
+    // over another type, but refuses the same type, which the panel would leave as a pending work with nothing
+    // ordered: accept it as a rebuild. The finished work adds 1 to the stadium's count of places (+0x0D), so
+    // ordering over a built one takes 1 off it first (new code in the padding at 0x8AB083).
+    {L"cafeterias-cambiables", L"Cafeterías cambiables",
+     L"Al remodelar el estadio, los bares, cafeterías y restaurantes ya construidos se pueden cambiar por otro tipo, o "
+     L"reconstruir, como una obra nueva. Mientras dura la obra, ese local no cuenta.",
+     L"manager.exe",
+     {{0xDE52E, {0xEB, 0x43}, {0x90, 0x90}},                          // jmp 0x4DE573 (a built place) -> the checks
+      {0xDE556, {0x85, 0xC0, 0x75, 0x19}, {0x40, 0x78, 0x1A, 0x90}},  // test/jne -> inc eax; js 0x4DE573: -1 or more
+      {0x4AAED2, {0x85, 0xC0}, {0x40, 0x90}},                         // test -> inc eax: the jge takes -1 too
+      {0x4AAEE5,
+       {0x8D, 0x0C, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x2B, 0xCF, 0x83, 0xFE, 0x03, 0x8D, 0x04, 0x8B, 0x89, 0x70, 0x08,
+        0xC7, 0x40, 0x04, 0x00, 0x00, 0x00, 0x00},
+       {0x6B, 0xC7, 0x1C,                    // imul eax,edi,1Ch
+        0x03, 0xC3,                          // add eax,ebx (the place's entry; was ecx = edi x 7, then lea)
+        0xE8, 0x94, 0x01, 0x00, 0x00,        // call 0x8AB083 (take 1 off the count if it has a café)
+        0x89, 0x70, 0x08,                    // mov [eax+8],esi (the type)
+        0x83, 0x60, 0x04, 0x00,              // and dword ptr [eax+4],0 (weeks)
+        0x83, 0xFE, 0x03,                    // cmp esi,3 (for the jne that follows, as before)
+        0x90, 0x90, 0x90, 0x90, 0x90}},
+      {0x4AB083, std::vector<uint8_t>(12, 0x90),
+       {0x83, 0x78, 0x08, 0x01,                    // cmp dword ptr [eax+8],1 (carry only if no café)
+        0x80, 0x93, 0x55, 0xFE, 0xFF, 0xFF, 0xFF,  // adc byte ptr [ebx-1ABh],0FFh (stadium +0x0D: -1, or 0 with carry)
+        0xC3}}}},                                  // ret
 };
 
 bool Matches(const std::vector<uint8_t>& bytes, size_t offset, const std::vector<uint8_t>& expected)

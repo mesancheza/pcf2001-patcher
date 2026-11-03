@@ -33,6 +33,8 @@ Some mods are alternatives to each other because they change the same bytes, suc
 | `fichajes-de-mas-nivel` | *Fichajes de más nivel (×1,5)* | The computer's clubs can sign players further above their own average: the margins are 50% larger. Not with the ×2 one |
 | `fichajes-del-doble-de-nivel` | *Fichajes de más nivel (×2)* | The same, with the margins doubled. Not with the ×1,5 one |
 | `transferibles-sin-limite-de-nivel` | *Transferibles sin límite de nivel* | The computer's clubs can make offers for transfer-listed players however far above their own average they are |
+| `gradas-de-cualquier-tipo` | *Gradas de cualquier tipo* | A stand can be changed to any type, also a lower one, not only to a higher one |
+| `cafeterias-cambiables` | *Cafeterías cambiables* | Bars, cafeterias and restaurants already built can be changed to another type, or rebuilt |
 
 ### `juveniles-de-cualquier-pais`
 
@@ -202,6 +204,35 @@ A computer's club takes a player from the transfer list only if his average is a
 | `manager.exe` | `0x94E61` | `0F 87 C6 02 00 00` (`ja 0x49512D`) | `90 90 90 90 90 90` |
 
 It applies to every club's transfer-listed players, not only a person's. It can be installed with either *Fichajes de más nivel*, which then still widen the other places a club looks. Not tested in play yet.
+
+### `gradas-de-cualquier-tipo`
+
+In *Remodelar → Gradas*, the type buttons of the selected stand (*Grada*, *Tribuna*, *Palco*, *VIP*) are enabled only above its current type ([GAME-INTERNALS.md](GAME-INTERNALS.md#stand-types-and-catering)). The finished work already sets whatever type was chosen, taking off the old type's seats and adding the new one's, so only the screen changes: with the mod it enables every type but the current one, while no stand work is under way.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0xDF853` | 18 bytes: find the stand's value, `cmp [eax*4+0A732A8h],edi; ja 0x4DF87F` (skip the types up to the current one) | the same address arithmetic in fewer bytes, then the current type's button (the table's value − 1), `cmp ecx,edi; je 0x4DF87F` (skip only it) |
+| | `0xDF98D` | 20 bytes: find the stand's value, store the table's value | the same in fewer bytes, storing the table's value − 1 |
+| | `0xDF9AF` | 21 bytes: the same for the other case | the same, with `imul` for the two `lea` |
+| | `0xDFA20` | `77 6D` (`ja 0x4DFA8F`: disable the types up to the current one) | `74 6D` (`je`: only the current one) |
+
+The first version of this mod changed the parking panel by mistake (`0xDBFC0`, `0xCD3E3`): a game with that version installed must have it removed with the mods tool of that version before installing this one.
+
+As with any stand work, when it ends the club's `+0x1C` goes up by 2 and its `+0x20` by 1 (both 0 to 100, not identified), also for a lower type. Not tested in play yet.
+
+### `cafeterias-cambiables`
+
+The *Remodelar → Servicios* panel lists the 22 places for a bar, cafeteria or restaurant, and only enables the empty ones ([GAME-INTERNALS.md](GAME-INTERNALS.md#stand-types-and-catering)). With the mod a built place can be selected too, and ordering a type for it is a new work: another type replaces the old one, the same type rebuilds it. During the work the place doesn't count (the stadium's count of places goes down by 1, and the finished work adds it back). The other conditions stay: one services work at a time, and the stadium size some places need.
+
+| File | Offset | Before | After |
+|---|---|---|---|
+| `manager.exe` | `0xDE52E` | `EB 43` (`jmp 0x4DE573`: a built place skips the checks) | `90 90` |
+| | `0xDE556` | `85 C0 75 19` (`test eax,eax; jne 0x4DE573`: only an empty place) | `40 78 1A 90` (`inc eax; js 0x4DE573`: any answer of −1 or more) |
+| | `0x4AAED2` | `85 C0` (`test eax,eax`, before the `jge` that refuses the same type) | `40 90` (`inc eax`: the same type is accepted) |
+| | `0x4AAEE5` | 25 bytes: find the place's entry, store the type, clear its weeks | the same in fewer bytes, with a call to `0x8AB083` before the type is stored |
+| | `0x4AB083` | 12 nops (padding) | `cmp dword ptr [eax+8],1; adc byte ptr [ebx-1ABh],0FFh; ret`: 1 off the stadium's count of places if the place has a café |
+
+As with any café work, when it ends the club's `+0x1C` goes up by 3 and its `+0x20` by 2. Not tested in play yet.
 
 ## How it works
 
