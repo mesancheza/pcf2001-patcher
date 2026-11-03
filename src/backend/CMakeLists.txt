@@ -24,6 +24,7 @@ add_library(backend SHARED
     presenter.cpp
     session_info.cpp
     surface.cpp
+    wheel_scroll.cpp
     ${GENERATED_DIR}/present_vs.h
     ${GENERATED_DIR}/present_ps.h)
 set_target_properties(backend PROPERTIES OUTPUT_NAME dcogl)
