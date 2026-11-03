@@ -16,6 +16,7 @@ Parche no oficial y de código abierto para que **PC FÚTBOL 2001** (Dinamic Mul
 | En modo ventana, algunos elementos se dibujan en el sitio equivocado | Debería resolverlo el componente gráfico nuevo; aún sin probar |
 | Algunos nombres largos de equipos salen como caracteres sin sentido y algunos jugadores aparecen con el nombre de otro (hasta ahora solo se evitaba con el modo de compatibilidad "Windows XP SP2") | Causa encontrada: el juego lee memoria que ya ha liberado. Lo evita una capa de compatibilidad de memoria (en pruebas); los arreglos en el código del juego están en curso |
 | El juego puede colgarse al salir | Resuelto con el componente gráfico nuevo (en pruebas) |
+| La rueda del ratón no hace nada (el juego es anterior a ella) | Añadido (en pruebas): la rueda desplaza la lista que hay bajo el cursor |
 | Cuelgues aleatorios que terminan con *"La aplicación no puede continuar"* | Causa encontrada: el juego escribe en memoria que ya ha liberado. La capa de compatibilidad de memoria los reduce mucho (en pruebas); los arreglos en el código del juego están en curso |
 
 También arregla fallos que el juego ya tenía en 2001:

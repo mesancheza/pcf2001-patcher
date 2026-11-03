@@ -192,6 +192,18 @@ On its first start, when `MainOpt.dat` doesn't exist yet, `manager.exe` (v3.6, t
 
 In full screen, `CGFXMainWindow::ResetMode` (`gfxwin.dll`) makes the game window topmost (`HWND_TOPMOST`). With DirectDraw's exclusive mode this didn't matter. With a borderless window it keeps the game covering the screen after Alt+Tab, so the new backend removes the topmost state.
 
+## Mouse wheel
+
+The game predates the mouse wheel: neither `manager.exe` nor `gfxwin.dll` handles `WM_MOUSEWHEEL`. The new backend adds it for the lists (`src/backend/wheel_scroll.cpp`), with only `gfxwin.dll`'s exports and the window fields its own code uses.
+
+**How the lists scroll:** they use `gfxwin.dll`'s scroll bar, `CGFXScrollBarControl`, created by `manager.exe` (it imports `Create`, `SetRangeStep` and `SetPos`). Its arrows call `SBPressed(button)` (RVA `0x60FB0`), which adds one step or one page by the button's id (`+0x186`: 1 line up, 2 line down, 3 page up, 4 page down; the steps are at `+0x18C` and `+0x190`), calls `SetPos(pos, 1)`, and, if the position changed, sends the scroll event to the first enclosing dialog (`CGFXDialog::CallMap`), which makes the list redraw. `SetPos` alone moves the bar without telling the list. `BtnTL` and `BtnBR` return the up and down arrows (`+0x19C`, `+0x324`).
+
+**Its windows,** as `CGFXWindow::PointWindow` (RVA `0x81D80`) walks them: parent at `+0x04`, first child at `+0x0C`, next sibling at `+0x10`, the rectangle in the parent's coordinates at `+0x4C` to `+0x58`, shown at `+0x144` (byte), disabled at bit 7 of `+0x80`. `CGFXWindow::MouseWindow()` and `ModalWindow()` (static) return the window under the mouse and the modal one.
+
+**What a wheel notch does:** from the window under the mouse, if every window up to the root is shown, take the scroll bar it's part of, if any; otherwise go up its parents and, at the first one that has some, pick the shown vertical scroll bar (recognised by its vtable: `CGFXScrollBarControl`'s, exported, or one of `manager.exe`'s two classes derived from it, at `0xA6A7xx` and `0xAB10xx`, whose entries reach its `Move`, `PaintWindow` and other methods through `manager.exe`'s import stubs) whose height spans the cursor and that is horizontally nearest, preferring the right; inside the modal window, if one is open. Press its up or down arrow with `SBPressed`, as many times as the Windows setting's lines per notch (10 for "one screen"), on the game's thread, from the window procedure the backend already installs. If an export is missing, the wheel does nothing (`dcogl.log` says so).
+
+Lists paged only by separate arrow buttons, with no scroll bar, don't scroll with the wheel.
+
 ## Crash on exit
 
 **Symptom:** the game can crash while quitting, with an access violation at an address outside any loaded module.

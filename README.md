@@ -16,6 +16,7 @@ An unofficial, open-source patch that makes **PC FÚTBOL 2001** (Dinamic Multime
 | Windowed mode draws some screen elements in the wrong place | Should be fixed by the new graphics component; not tested yet |
 | Some long team names show garbage, and some player names appear on the wrong players (previously only avoidable with "Windows XP SP2" compatibility mode) | Cause found: the game reads memory it has already freed. Worked around by a memory compatibility layer (in testing); fixes in the game's code in progress |
 | The game can crash when quitting | Fixed by the new graphics component (in testing) |
+| The mouse wheel does nothing (the game predates it) | Added (in testing): the wheel scrolls the list under the cursor |
 | Random crashes ending in *"La aplicación no puede continuar"* | Cause found: the game writes to memory it has already freed. Much reduced by the memory compatibility layer (in testing); fixes in the game's code in progress |
 
 It also fixes bugs the original game already had in 2001:
