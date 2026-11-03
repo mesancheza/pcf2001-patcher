@@ -28,7 +28,7 @@ They do the same without any window, and return exit code 0 on success.
 
 | File | Change |
 |---|---|
-| `dcogl.dll` | Added: the new graphics component (Direct3D 11), with the memory compatibility layer and the log ([DESIGN.md D6, D13, D14](DESIGN.md#d6-replace-the-graphics-component-through-the-games-own-plug-in-interface-using-direct3d-11)). The patcher carries it inside itself, so players download one program. |
+| `dcogl.dll` | Added: the new graphics component (Direct3D 11), with the memory compatibility layer, the log, and mouse wheel scrolling for the lists ([DESIGN.md D6, D13, D14](DESIGN.md#d6-replace-the-graphics-component-through-the-games-own-plug-in-interface-using-direct3d-11), [GAME-INTERNALS.md](GAME-INTERNALS.md#mouse-wheel)). The patcher carries it inside itself, so players download one program. |
 | `gfxwin.dll` | The default graphics backend, and a fix in its shutdown code. Details below. |
 | `manager.exe` | Fixes in the game's code. Details below. |
 

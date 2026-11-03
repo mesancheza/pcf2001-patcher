@@ -2,6 +2,7 @@
 
 #include "backend_log.h"
 #include "presenter.h"
+#include "wheel_scroll.h"
 
 #include <windowsx.h>
 
@@ -189,6 +190,12 @@ LRESULT CALLBACK MappedWindowProc(HWND window, UINT message, WPARAM wParam, LPAR
     }
 
     const Mapping m = CurrentMapping();
+    if (message == WM_MOUSEWHEEL)
+    {
+        POINT client{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};  // screen coordinates
+        g_screenToClient(window, &client);
+        ScrollListUnderMouse(GET_WHEEL_DELTA_WPARAM(wParam), m.active ? RealClientToFrame(m, client) : client);
+    }
     if (m.active)
     {
         switch (message)
