@@ -533,29 +533,19 @@ A youth player trains while his byte `+0x101` is set. The *Entrenando* button of
 
 ### The computer's clubs' signings
 
-How a club the computer runs chooses players to sign, which the mods `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel` change ([MODS.md](MODS.md#fichajes-de-mas-nivel-and-fichajes-del-doble-de-nivel)). Read from the code; not traced in play.
+How a club the computer runs chooses players to sign, which the mods `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel` change, is in [TRANSFERS.md](TRANSFERS.md#the-computers-clubs-signings), with how offers to players are accepted or refused.
 
-`0x494AA0` runs every day for each club, from the club's daily processing (`0x49EFFB` in `0x49E1E0`), when `0x4A7F00` returned 0 (presumably no one manages the club; not identified). It gives up unless:
+### Stand types and catering
 
-- option 10 of `0x4D0690` is clear;
-- the club's ID is below 9900, so not a hidden team;
-- the squad has fewer than 25 players, and a random number below the squad size is below 16;
-- the club's `+0x108` is set, or a 1-in-35 chance passes.
+What the *Remodelar* screen lets a stand or a catering place change to, which the mods `gradas-de-cualquier-tipo` and `cafeterias-cambiables` change ([MODS.md](MODS.md#gradas-de-cualquier-tipo)). Read from the code; not traced in play.
 
-It works out the club's average *T*: the sum of speed, stamina, aggressiveness and quality over the squad, divided by 4 × the squad size. It then picks the position it needs (`0x49A980`, `0x494400`; otherwise a random one from 1 to 19), and looks in four places, each taking a player only if his average (of the same four ratings) is in a window around *T*:
+The screen's four sections are `[screen+0xB350]`: 0 *Gradas* (`0x4DB4C0`), 1 *Parking* (`0x4DBE81`), 2 and 3 *Equipamiento* and *Servicios* (`0x4DC41D`, `0x4DC7B3`).
 
-| Where | Which player | Window | Checks (VA) |
-|---|---|---|---|
-| The free agents (club 9950) | the best for the position (`0x494400`), with no pending move (`+0xDC`) and fewer than 3 offers | at least *T* − 4 | `0x494CF5` |
-| The list at the context's `+0x44`, probably the transfer list | a seller with more than 16 players, not the club itself (`0x494A30`); the position (`0x4933E0`); a random chance (below) | *T* − 2 to *T* + 4 | `0x4951DE`, `0x4951E9` |
-| Other clubs (the context's `+0x4C`), each with a 1-in-6000 chance | his club's best for the position, by contract years and salary | *T* − 2 to *T* + 2 | `0x4954C1`, `0x4954CC` |
-| A random club's squad, on 3% of days after the 7th not divisible by 4 | any of its players | above *T*, up to *T* + 5; or up to *T* + 10 if `0x4B0360` is below 25 | `0x495860` to `0x495883` |
+**Stands.** A stand is an amphitheatre's side: six amphitheatre buttons (1st to 3rd, side and corner, `[screen+0xB35C]`) and four sides (*Oeste*, *Este*, *Sur*, *Norte*, `[screen+0xB360]`). Each stand stores one of 13 values in the stadium: 0 for none, then three each (probably sizes) for *VIP* (1–3), *Palco* (4–6), *Tribuna* (7–9) and *Grada* (10–12). The table at `0xA732A8` gives for each value the lowest type button allowed, the current type's plus 1 (0 for none, 4 for VIP). Two places enable the type buttons from it: the stand panel (`0x4DF550`, `0x4DF85C`) and the drawing of each button with its label (`0x4DF960`, `0x4DFA1C`), which also disable them all while a stand work is under way (`+0x450`). Selecting a type makes it the pending stand work, `+0x45C` (`0x4DA7AF`, from `0x4DF070`). When the work ends, the weekly update (`0x4CD12F`) decodes it (`0x4DF0D0`), takes the old value's seats off the capacity (`+4`), sets the new value (`0x4CC360`) and adds its seats, then changes the club's `+0x1C` by +2 and `+0x20` by +1 (`0x4C29A0`, `0x4C29D0`, kept from 0 to 100). So any type can be set; only the screen limits it.
 
-The list's chance is a random number below *N* (how it's then tested isn't noted here), with *N* 0 (none) if the squad has fewer than 16 players, and otherwise 65 (55 if the seller is managed); 12 less if both are in the same competition, 36 less if the seller's `+0x108` is set, 2 less if the squad has fewer than 20. `0x4B0360` returns (`+0x110` × 50 + `+0x10F` × 30) / 100, plus 15 if bit 0 of `+0x13D` is clear and 5 if bit 1 is: not the age, and not identified.
+**Parking.** The four parking areas have a level each, dwords at `+0x158`, `+0x15C`, `+0x160` and `+0x164`: 0 for none, 1 to 4 floors. The panel enables only the next floor (`0x4DBFC0`), and the finished work adds 1 to the level (`0x4CD3F5`), whatever button was chosen (the pending work, `+0x460`, is `0x8D` + 4 × area + button). Every parking work costs 500 million over 7 weeks (`0x4CC6D0` kind 1).
 
-Every margin is the 8-bit immediate of one `lea` or `add`, and each check is an unsigned `ja`/`jbe`, so the window includes its ends. The foreign-player limit is checked too (`0x4B1C90`, [Foreign players](#foreign-players)), and the offers are made by `0x4A0500` (`0x49511F`, `0x495717`, `0x495A17`) and `0x4B16B0`; what those check isn't identified.
-
-**Renewals:** the club's transfer processing (`0x4C1030`) renews a player in the last year of his contract (`+0xD5` is 1, checked every 8 days) if his average is at least *T*, or his salary (`+0x6C`) is at least half of the club's `+0x14C`.
+**Catering.** The 22 places for a bar, cafeteria or restaurant are the entries at `+0x1B8` ([Two services works at once](#two-services-works-at-once)), with the type at `+8`: 1 *Cafeterías* (1 week), 2 *Bares* (3 weeks), 3 *Restaurantes* (5 weeks). `0x8AB0E0` returns a place's type. `0x8AAFB0` (type, place, stadium capacity) checks an order: it answers the type already there, or −1 if it's the type asked for, and then −2 or less if the place needs a bigger stadium (places 12 to 21 need 15,000 to 90,000 seats). The panel (`0x4DE4FB`) shows a built place's type and never enables it; an empty place it enables when no services work is pending and the check answers 0. *Aceptar* (`0x4DEF20`) makes the place the pending work (`+0x464`) and orders it with `0x8AAEB0`, which refuses only the check's negative answers: it would build over another type. A finished work adds 1 to the stadium's count of places, `+0x0D` (read by `0x4CC620`, shown on the summary screens and used for catering), and changes the club's `+0x1C` by +3 and `+0x20` by +2. The stadium's setup (`0x4CB7xx`) builds its first places with the same function, finished at once, and then sets the count itself.
 
 ### Youth player offered a salary of 0
 
