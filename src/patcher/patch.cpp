@@ -64,11 +64,11 @@ const PatchedFile kPatchedFiles[] = {
       {0x106D66, {0x00, 0x00}, {0x59, 0x34}}}},  // relocation: padding entry -> HIGHLOW at 0x10059459
     // Fixes in the game's code (docs/GAME-INTERNALS.md). Each one jumps to new code in the padding between two
     // functions, and back.
-    {kGameFiles[0], "70755417cdd1e6469f918a96e7fa5927e00dee3a4f496355599b1990f99412b6",
+    {kGameFiles[0], "b6b160b4883b693942ea12a3ed24c8a5437bc84df88ce36c640a773882b0736b",
      L"advertising boards on Auto without a groundskeeper, absurd and empty TV offers, boards screen after "
      L"Rellena, two services works at once, services cost after a cafeteria is finished, rows with equal values "
-     L"swapping when a list is scrolled, ageing undone at managed clubs, crash choosing shirt numbers, fixed; "
-     L"player menu opens without its animation",
+     L"swapping when a list is scrolled, ageing undone at managed clubs, crash choosing shirt numbers, crash in "
+     L"Goleadores and Porteros, fixed; player menu opens without its animation",
      // Advertising boards on Auto with no groundskeeper hired: where the daily processing reads the groundskeeper's
      // quality through a null pointer, use quality 0 when there's none, as the assistant handles the boards.
      {{0xABA8C,
@@ -278,7 +278,33 @@ const PatchedFile kPatchedFiles[] = {
        {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
        {0xFF, 0x25, 0x60, 0xA0, 0xA6, 0x00,    // jmp dword ptr [0xA6A060] (CGFXWindow::Invalidate, as before)
         0xC2, 0x04, 0x00,                      // ret 4 (0x431F9C: no redraw, its argument dropped)
-        0x90}}}},
+        0x90}},
+      // Crash in Goleadores and Porteros: both screens (built at 0x7E3710 and 0x7EA9A0) have a chart of up
+      // to three series (a CGFXStaticControl with its vtable at 0xA8A438), each a count at +0x184 and a pointer to
+      // its values at +0x190. Its draw (0x7E64E0) goes through the series until a null pointer, but the pointers are
+      // only set when a series is filled or cleared, never when the chart is built: with one series shown, the draw
+      // reads the second from whatever the new memory held. Where each screen stores the chart's vtable, call new
+      // code in two padding runs linked by a short jump that stores it and clears the three pointers.
+      {0x3E3C2E,
+       {0xC7, 0x03, 0x38, 0xA4, 0xA8, 0x00},   // mov dword ptr [ebx],0xA8A438
+       {0xE8, 0x2E, 0x80, 0x01, 0x00, 0x90}},  // call 0x7FBC61; nop
+      {0x3EAEC5,
+       {0xC7, 0x03, 0x38, 0xA4, 0xA8, 0x00},   // mov dword ptr [ebx],0xA8A438
+       {0xE8, 0x97, 0x0D, 0x01, 0x00, 0x90}},  // call 0x7FBC61; nop
+      {0x3FBC61,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0xC7, 0x03, 0x38, 0xA4, 0xA8, 0x00,    // mov dword ptr [ebx],0xA8A438 (as before)
+        0x8D, 0x8B, 0x90, 0x01, 0x00, 0x00,    // lea ecx,[ebx+190h] (the series' pointers)
+        0xEB, 0x02,                            // jmp 0x7FBC71
+        0x90}},
+      {0x3FBC71,
+       {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
+       {0x33, 0xC0,                            // xor eax,eax (ecx and eax are set again before they're read)
+        0x89, 0x01,                            // mov [ecx],eax
+        0x89, 0x41, 0x04,                      // mov [ecx+4],eax
+        0x89, 0x41, 0x08,                      // mov [ecx+8],eax
+        0xC3,                                  // ret
+        0x90, 0x90, 0x90, 0x90}}}},
 };
 
 const PatchedFile* FindPatchedFile(const wchar_t* name)

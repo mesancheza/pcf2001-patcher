@@ -16,6 +16,11 @@ constexpr size_t kTop = 0x50;
 constexpr size_t kRight = 0x54;
 constexpr size_t kBottom = 0x58;
 constexpr size_t kShown = 0x144;  // byte
+// CGFXScrollBarControl, as SetRangeStep sets it and SBPressed uses it: how far the arrow buttons move the position, and
+// how far the buttons between them and the thumb do, a page. The game sets the page to the rows the list shows (one for
+// the lists of a single item, such as a player's transfer offers).
+constexpr size_t kArrowStep = 0x18C;
+constexpr size_t kPageStep = 0x190;
 
 // A list's controls are a handful of levels deep; these only bound the search against a damaged tree.
 constexpr int kMaxDepth = 16;
@@ -276,13 +281,27 @@ void* FindScrollBar(POINT point)
     }
 }
 
-int LinesPerNotch()
+// The arrow presses for one notch: Windows' lines per notch, but never more than a page of the list, as Windows' own
+// lists do; a page when Windows is set to scroll a page at a time.
+int PressesPerNotch(void* bar)
 {
     UINT lines = 3;
     SystemParametersInfoA(SPI_GETWHEELSCROLLLINES, 0, &lines, 0);
+    int page = 0;
+    __try
+    {
+        const int arrow = Int(bar, kArrowStep);
+        if (arrow > 0)
+            page = Int(bar, kPageStep) / arrow;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        page = 0;
+    }
     if (lines == WHEEL_PAGESCROLL)
-        return 10;
-    return static_cast<int>(lines > 20 ? 20 : lines);
+        return page > 0 ? page : 10;
+    const int presses = static_cast<int>(lines > 20 ? 20 : lines);
+    return page > 0 && page < presses ? page : presses;
 }
 }  // namespace
 
@@ -304,7 +323,7 @@ void ScrollListUnderMouse(int delta, POINT point)
         return;
     // Away from the user scrolls up, as in every Windows list.
     void* button = notches > 0 ? g_gfxwin.upButton(bar, nullptr) : g_gfxwin.downButton(bar, nullptr);
-    const int presses = (notches > 0 ? notches : -notches) * LinesPerNotch();
+    const int presses = (notches > 0 ? notches : -notches) * PressesPerNotch(bar);
     for (int i = 0; i < presses; ++i)
         g_gfxwin.press(bar, nullptr, button);
 }
