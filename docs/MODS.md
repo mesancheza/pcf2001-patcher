@@ -163,14 +163,15 @@ Tested: with more youth players training than the coach's limit, no message, and
 
 ### `siete-suplentes-en-todas-las-competiciones`
 
-A match's bench size is a field of the match, which new matches start with as 7; some competitions set it to 5 just before the match is played ([GAME-INTERNALS.md](GAME-INTERNALS.md#substitutes)). The mod makes those 23 places set 7, and the automatic line-up use 7 when there's no current match (it used 5). The line-up screen still shows fewer substitutes when the squad has fewer than 18 players.
+A match's bench size is a field of the match, which new matches start with as 7; some competitions set it to 5 just before the match is played ([GAME-INTERNALS.md](GAME-INTERNALS.md#substitutes)). The mod makes those 34 places set 7, and the automatic line-up use 7 when there's no current match (it used 5). The line-up screen still shows fewer substitutes when the squad has fewer than 18 players. The pre-season tournaments keep their 6.
 
 | File | Offset | Before | After |
 |---|---|---|---|
 | `manager.exe` | `0x133AE6`, `0x1389DA`, `0x140EC4`, `0x14138D`, `0x141C02`, `0x141D01`, `0x14202A`, `0x1426B7`, `0x14F77E`, `0x14FF43`, `0x15A484`, `0x15A94D`, `0x15B1CF`, `0x15B2CE`, `0x15B5F9`, `0x15BC97`, `0x165786`, `0x165C63`, `0x16650F`, `0x16660F`, `0x166945`, `0x27D710`, `0x27EB03` | `C7 4x 24 05 00 00 00` (`mov dword ptr [reg+24h],5`) | `C7 4x 24 07 00 00 00` |
+| | `0x130163`, `0x1304E6`, `0x137E45`, `0x1381D7`, `0x14997E`, `0x26DC89`, `0x26DD41`, `0x27D36B`, `0x27EC37`, `0x2877C4`, `0x287989` | `C7 44 xx 24 05 00 00 00` (`mov dword ptr [reg+reg+24h],5`) | `C7 44 xx 24 07 00 00 00` |
 | | `0x93921` | `B8 05 00 00 00` (`mov eax,5`) | `B8 07 00 00 00` |
 
-Tested in play: the line-up's bench showed seven substitutes.
+The first version had only the 23 stores of the first form, and missed the second: the Premier League's own (`0x54997E`), among others, still set 5. Seen in a Premier League career with Brighton: the line-up screen read the match's bench as 5 with 23 players in the squad, through the match set up at `0x549992`. With the 11 more, the same match's line-up showed seven. An install of the first version is recognised and replaced (tested: installing over it left the mod's 35 changes and the other mods as they were): the mods are undone change by change, so a mod with fewer changes than its current version still comes off.
 
 ### `fichajes-de-mas-nivel` and `fichajes-del-doble-de-nivel`
 

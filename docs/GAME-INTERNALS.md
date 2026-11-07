@@ -511,7 +511,7 @@ How many substitutes a club can name, which the mod `siete-suplentes-en-todas-la
 | `0x6083B0` | Sets up or plays a match (157 calls) |
 | `0x607A20` | Copies a match's fields from another (the copy constructor sets `+0x24` to 5 at `0x6079ED`, then calls this) |
 
-New matches start with 7: 87 other places store 7 at a `+0x24` with no call to `0x6083B0` nearby, and the four checked are inlined match constructors (`0x408D8F`, `0x53320F`, `0x588176`, `0x62AB0F`); none stores another value. In 23 places, all in the competitions' code (`0x533AE6` to `0x67EB03`), a competition then sets it to 5, with a `mov dword ptr [reg+24h],5` a few instructions before calling `0x6083B0`; 25 others set 7 the same way. No other value is ever stored there. Which competitions the 23 belong to isn't identified.
+New matches start with 7: 87 other places store 7 at a `+0x24` with no call to `0x6083B0` nearby, and the four checked are inlined match constructors (`0x408D8F`, `0x53320F`, `0x588176`, `0x62AB0F`); none stores another value. In 34 places, all in the competitions' code (`0x530163` to `0x687989`), a competition then sets it to 5 a few instructions before calling `0x6083B0`: 23 with `mov dword ptr [reg+24h],5`, 11 with `mov dword ptr [reg+reg+24h],5` (the competition's match at an offset in a register), among them the Premier League's own matches (`0x54997E`, before `0x549992`). 46 others set 7 the same way, and one more with the second form (`0x5A85FA`). The pre-season tournaments (`0x5AB20D`, `0x5AC42D`, `0x5AD5BD`, `0x5B754D`, `0x5B866D`) store 6 from `eax`, which they also store at the match's `+0x28` and `+0x30`. Which competitions the others belong to isn't identified.
 
 ### Flags in player lists
 
