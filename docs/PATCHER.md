@@ -89,16 +89,20 @@ Each fixes a bug in the game's code at its cause ([DESIGN.md D8](DESIGN.md#d8-fi
 | | `0x32C63` | `8D 0C 40 C1 E1 05 03 C8 8D 8C 8E 98 23 00 00 FF 15 60 A0 A6 00` | `69 C8 84 01 00 00 03 CE E8 11 F3 FF FF` + `90` × 8 |
 | | `0x31F81` | `90` × 15 | `48 83 F8 32 73 15 81 C1 98 23 00 00 EB 07 90` |
 | | `0x31F96` | `90` × 10 | `FF 25 60 A0 A6 00 C2 04 00 90` |
+| [Crash in *Goleadores* and *Porteros*](GAME-INTERNALS.md#crash-in-goleadores-and-porteros) | `0x3E3C2E` | `C7 03 38 A4 A8 00` | `E8 2E 80 01 00 90` |
+| | `0x3EAEC5` | `C7 03 38 A4 A8 00` | `E8 97 0D 01 00 90` |
+| | `0x3FBC61` | `90` × 15 | `C7 03 38 A4 A8 00 8D 8B 90 01 00 00 EB 02 90` |
+| | `0x3FBC71` | `90` × 15 | `33 C0 89 01 89 41 04 89 41 08 C3 90 90 90 90` |
 | [The player menu's animation](GAME-INTERNALS.md#the-player-menus-animation) (not a bug fix) | `0x55664C` | `75 76` | `EB 76` |
 | | `0x554196` | `76 5C` | `90 90` |
 | | `0x5542E6` | `72 34` | `90 90` |
 
-In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s. For the ageing: both blocks are rewritten in place, shorter, as calls to two helpers placed in the space this frees (`0x4AF64D` for a gain, `0x4AF65B` for a decline), which change the rating as before and its base by the same amount. For the shirt numbers: each of the three places computes the button's address more compactly and calls a helper, across two padding runs linked by a short jump, that redraws the button only for numbers 1 to 50. For the player menu: a conditional jump becomes unconditional so the menu is laid out complete, and the two jumps that schedule each animation's next step become `nop`s.
+In each fix, the first change jumps to new code in the padding between two functions, which jumps back. For the groundskeeper: quality 0 when there's none, his quality as before when there is one. For the TV offers: the two instructions the jump replaced, then the "all rights" amount set to 0. For the empty offers: if the offer has no money, the next padding run deletes it; otherwise it's added to the list as before. For *Rellena*: the instruction the jump replaced, then the current section shown again (its list filled and redrawn), across three padding runs linked by short jumps. For the services works: a call instead of a jump, to code that reads both pending-work fields and returns. For the stadium expenses: no new code elsewhere; the block is rewritten in place, shorter, and ends with a jump. For the lists: no new code either; one conditional jump in each of the sort's three loops becomes two `nop`s. For the ageing: both blocks are rewritten in place, shorter, as calls to two helpers placed in the space this frees (`0x4AF64D` for a gain, `0x4AF65B` for a decline), which change the rating as before and its base by the same amount. For the shirt numbers: each of the three places computes the button's address more compactly and calls a helper, across two padding runs linked by a short jump, that redraws the button only for numbers 1 to 50. For *Goleadores* and *Porteros*: where each of the two screens with the chart stores the chart's vtable, a call to code across two padding runs linked by a short jump, which stores it and clears the chart's three series pointers. For the player menu: a conditional jump becomes unconditional so the menu is laid out complete, and the two jumps that schedule each animation's next step become `nop`s.
 
 | | |
 |---|---|
 | SHA-256 before | `bcbb057e80e370dfd1647c7124cac80cd8ac4bdcdc51abb36caa43a828dd63bc` (v3.6) |
-| SHA-256 after | `70755417cdd1e6469f918a96e7fa5927e00dee3a4f496355599b1990f99412b6` |
+| SHA-256 after | `b6b160b4883b693942ea12a3ed24c8a5437bc84df88ce36c640a773882b0736b` |
 
 ## Applying
 
