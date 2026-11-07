@@ -37,7 +37,7 @@ The negotiation with the player's club (`0x4B1640` finds it, by player and club)
 
 ## Club levels
 
-Every club has a **level** at `+0xEC`, from 0 to 13, which the salaries and the player's judgement of an offer depend on. 0 is the richest: the salary a level expects scales with (1 − 0.1 × level)^4.5 (`0x491680`, levels above 9 count as 9), so a level-1 club pays 62% of a level-0 one, and a level-3 club 20%. **How the level is set** (`0x49A649`–`0x49A6C3`): the average of speed, stamina, aggressiveness and quality over the squad (`0x49AB30`: the best 80% of the players for clubs whose `+0x112` is 30, probably Spain; every player otherwise), turned into a level by `0x4A1B90`:
+Every club has a **level** at `+0xEC`, from 0 to 13, which the salaries and the player's judgement of an offer depend on. 0 is the richest: the salary a level expects scales with (1 − 0.1 × level)^4.5 (`0x491680`, levels above 9 count as 9), so a level-1 club pays 62% of a level-0 one, and a level-3 club 20%. **How the level is set** (`0x49A649`–`0x49A6C3`): the average of speed, stamina, aggressiveness and quality over the squad (`0x49AB30`: the best 80% of the players for clubs whose `+0x112` is 30, English and Welsh clubs ([DATABASE.md](DATABASE.md#countries)); every player otherwise), turned into a level by `0x4A1B90`:
 
 | Average | 80+ | 76–79 | 72–75 | 67–71 | 64–66 | 60–63 | 56–59 | 54–55 | 52–53 | below 52 |
 |---|---|---|---|---|---|---|---|---|---|---|
