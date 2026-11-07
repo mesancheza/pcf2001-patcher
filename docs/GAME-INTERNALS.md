@@ -417,6 +417,22 @@ How training, the season end and the ageing work in full, exercise by exercise, 
 
 **Fix:** the three places compute the button's address more compactly and call a helper at `0x431F81` (continued at `0x431F96`, two padding runs linked by a short jump) that redraws the button only for numbers 1 to 50. A player with a number outside that range keeps it, with no button highlighted, until he's given one from 1 to 50. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe).
 
+### Crash in Goleadores and Porteros
+
+**Symptom:** opening *Goleadores* ends the game with *"La aplicación no puede continuar"*. `dcogl.log` shows an access violation at `MANAGER.EXE+0x3e65f6` (VA `0x7E65F6`), reading address `0x5b5b5b5b`. Seen on one machine, with a game in progress; whether it happens depends on what the memory held before.
+
+**The chart:** the screen has an evolution chart, a `CGFXStaticControl` with its vtable at `0xA8A438`, embedded at `+0x6E10` of the screen. It draws up to three series, in green, black and white: series *i* has its number of values at `+0x184` + 4*i* and a pointer to them at `+0x190` + 4*i* (`+0x19C` is a scale). The screen fills a series (`0x7E6F92`, the one at `+0x93AC`, from `+0x23E0` and `+0x3680`) or clears it (`0x7E6740`, `0x7E67A0`, `0x7E6810`, one per series). Two screens build this chart: *Goleadores* (`0x7E3710`, at `0x7E3C2E`; `ayuda\goleadores.htm`) and *Porteros* (`0x7EA9A0`, at `0x7EAEC5`; `ayuda\porteros.htm`), so both had the bug.
+
+**The game's other charts** don't have it. Every chart line goes through `CGFXDrawContext::Line`, which the game calls from four places besides this chart:
+- **The training chart** (`0x7F2180`, class `0xA8AB38`, `tx_pcfwinneoentrenamiento_cpp`): up to four series, each with a team ID at `+0x2420` + 2*i* and an array at `+0x2400` + 8*i*. The constructor builds the arrays empty (`0x7F12B0`), and the screen sets the four IDs when it fills the chart (`0x7F1470`) before anything reads them.
+- **Class `0xAAF89C`** (`0x929BE0`): its arrays and flags are set where it's built (`0x8E7360`), and its `+0x630` there and at `0x92972C`.
+- **A chart drawn on the spot** (`0x8AE480`, from `0x45C360` and `0x8B1F1E`): built on the stack with every field from its arguments.
+The league tables' screens (`0x6DC000` to `0x6E8000`) draw no lines: bitmaps, frames and text only.
+
+**Cause:** the draw (`0x7E64E0`) goes through the series until it finds a null pointer, but nothing sets the pointers when the chart is built: its constructor is the base class's and the vtable, and `CGFXStaticControl` is a `CGFXWindow` with a vtable, so the three series are fields of the game's own class, left with whatever the new memory held. With one series filled, the draw reads the second's pointer from that memory: zero in the original game's usual conditions, which is why it works most of the time, and `0x5B5B5B5B` in the crash.
+
+**Fix:** where each screen stores the chart's vtable, a call to new code at `0x7FBC61` (continued at `0x7FBC71`, two padding runs linked by a short jump) that stores it and clears the three pointers. The counts are only read for a series with a pointer, so they're left as they are. Bytes in [PATCHER.md](PATCHER.md#the-changes-to-managerexe). Tested with the memory layer's diagnostic fill (`fill_new=5B`), so that every pointer left unset reads `0x5B5B5B5B`, as in the crash: with the fix, *Goleadores*, *Porteros* and the section's other charts opened without a crash. The unpatched game wasn't run under the same fill.
+
 ### The youth search
 
 How *Jóvenes promesas* finds youth players, which the mod `juveniles-de-cualquier-pais` changes ([MODS.md](MODS.md#juveniles-de-cualquier-pais)).
